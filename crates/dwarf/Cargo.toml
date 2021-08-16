@@ -1,0 +1,14 @@
+[package]
+name = "cdp-gdb-bridge"
+version = "0.1.0"
+authors = ["kamenokonokotan <kamenokonokotan@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+wasm-bindgen = "0.2.75"
+js-sys = "*"
+gimli = "0.25.0"
+object = { version = "0.26", features = ["wasm"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
