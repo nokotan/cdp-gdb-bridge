@@ -1,11 +1,21 @@
-import type ProtocolProxyApi from 'devtools-protocol/types/protocol-proxy-api';
+import { DebuggerCommand } from './DebugSession';
 import { createInterface } from 'readline';
 
 export class CommandReader {
-    private browserDebugger: ProtocolProxyApi.DebuggerApi
+    private session: DebuggerCommand;
+    private commandList: Map<string, Function>;
 
-    constructor(_debugger: ProtocolProxyApi.DebuggerApi) {
-        this.browserDebugger = _debugger;
+    constructor(_session: DebuggerCommand) {
+        this.session = _session;
+
+        this.commandList = new Map<string, Function>([
+            [ 'c', this.session.continue ],
+            [ 'n', this.session.stepOver ],
+            [ 's', this.session.stepIn ],
+            [ 'u', this.session.stepOut ],
+            [ 'b', this.session.setBreakPoint ],
+            [ 'd', this.session.removeBreakPoint ],
+        ]);
     }
 
     start(): Promise<void> {
@@ -14,12 +24,20 @@ export class CommandReader {
                 const inputReader = createInterface({ input: process.stdin });
 
                 inputReader.on("line", line => {
-                    if (line == 'q')
-                    {                
+                    const commandArgs = line.split(' ');
+
+                    if (commandArgs.length == 0) {
+                        return;
+                    }
+
+                    if (commandArgs[0] == 'q')
+                    {             
+                        inputReader.close();   
                         resolve();
                         return;
                     }
-                    
+
+                    this.commandList.get(commandArgs[0])?.apply(this.session, commandArgs.slice(1));
                 })
             }
         )

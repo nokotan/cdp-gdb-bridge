@@ -21,16 +21,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c59e7af012c713f529e7a3ee57ce9b31ddd858d4b512923602f74608b009631"
 
 [[package]]
-name = "cdp-gdb-bridge"
-version = "0.1.0"
-dependencies = [
- "gimli",
- "js-sys",
- "object",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -241,6 +231,16 @@ name = "wasm-bindgen-shared"
 version = "0.2.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e0c4a743a309662d45f4ede961d7afa4ba4131a59a639f29b0069c3798bbcc2"
+
+[[package]]
+name = "wasm-dwarf-alanyser"
+version = "0.1.0"
+dependencies = [
+ "gimli",
+ "js-sys",
+ "object",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "wasmparser"

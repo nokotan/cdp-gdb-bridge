@@ -26,7 +26,7 @@ pub struct DwarfLineAddressMapping {
 
 #[wasm_bindgen]
 pub struct DwarfLineAddressMappingWeakRef {
-    data: Rc<RefCell<DwarfLineAddressMapping>>
+    data: Weak<RefCell<DwarfLineAddressMapping>>
 }
 
 pub struct DwarfAddressFileMapping {
@@ -37,72 +37,82 @@ pub struct DwarfAddressFileMapping {
 
 #[wasm_bindgen]
 pub struct DwarfAddressFileMappingWeakRef {
-    data: Rc<RefCell<DwarfAddressFileMapping>>
+    data: Weak<RefCell<DwarfAddressFileMapping>>
 }
 
 #[wasm_bindgen]
 impl DwarfAddressFileMappingWeakRef {
     pub fn line(&self) -> u32 {
-        self.data.borrow().line
+        self.data.upgrade().unwrap().borrow().line
     }
 
     pub fn file(&self) -> String {
-        self.data.borrow().file.clone()
+        self.data.upgrade().unwrap().borrow().file.clone()
     }
 }
 
 #[wasm_bindgen]
 impl DwarfLineAddressMappingWeakRef {
     pub fn line(&self) -> u32 {
-        self.data.borrow().line
+        self.data.upgrade().unwrap().borrow().line
     }
 
     pub fn address(&self) -> u32 {
-        self.data.borrow().address
+        self.data.upgrade().unwrap().borrow().address
     }
 }
 
 
 
-pub struct DwarfDebugFile {
+pub struct DwarfSourceFile {
     data: Vec<Rc<RefCell<DwarfLineAddressMapping>>>,
     file: String
 }
 
 #[wasm_bindgen]
-pub struct DwarfDebugFileWeakRef {
-    data: Rc<RefCell<DwarfDebugFile>>
+pub struct DwarfSourceFileWeakRef {
+    data: Weak<RefCell<DwarfSourceFile>>
 }
 
 #[wasm_bindgen]
-impl DwarfDebugFileWeakRef {
+impl DwarfSourceFileWeakRef {
     pub fn size(&self) -> usize {
-        self.data.borrow().data.len()
+        self.data.upgrade().unwrap().borrow().data.len()
     }
 
     pub fn at(&self, index: usize) -> DwarfLineAddressMappingWeakRef {
         DwarfLineAddressMappingWeakRef {
-            data: self.data.borrow().data[index].clone()
+            data: Rc::downgrade(&self.data.upgrade().unwrap().borrow().data[index])
         }
     }
 
     pub fn filename(&self) -> String {
-        self.data.borrow().file.clone()
+        self.data.upgrade().unwrap().borrow().file.clone()
+    }
+
+    pub fn find_address_from_line(&self, line: u32) -> Option<DwarfLineAddressMappingWeakRef> {
+        match self.data.upgrade().unwrap().borrow().data.iter().find(|x| 
+            x.borrow().line == line
+        )
+        {
+            Some(x) => Option::from(DwarfLineAddressMappingWeakRef { data: Rc::downgrade(x) }),
+            None => Option::None
+        }
     }
 }
 
 
 
 #[wasm_bindgen]
-pub struct DwarfDebugLineContainer {
-    data: Vec<Rc<RefCell<DwarfDebugFile>>>,
+pub struct DwarfDebugSymbolContainer {
+    data: Vec<Rc<RefCell<DwarfSourceFile>>>,
     rev_data: Vec<Rc<RefCell<DwarfAddressFileMapping>>>
 }
 
 #[wasm_bindgen]
-impl DwarfDebugLineContainer {
-    pub fn new() -> DwarfDebugLineContainer {
-        DwarfDebugLineContainer {
+impl DwarfDebugSymbolContainer {
+    pub fn new() -> DwarfDebugSymbolContainer {
+        DwarfDebugSymbolContainer {
            data: Vec::new(),
            rev_data: Vec::new()
         }
@@ -112,36 +122,36 @@ impl DwarfDebugLineContainer {
         self.data.len()
     }
 
-    pub fn at(&self, index: usize) -> DwarfDebugFileWeakRef {
-        DwarfDebugFileWeakRef {
-            data: self.data[index].clone()
+    pub fn at(&self, index: usize) -> DwarfSourceFileWeakRef {
+        DwarfSourceFileWeakRef {
+            data: Rc::downgrade(&self.data[index])
         }
     }
 
-    pub fn find_file(&self, filepath: String) -> Option<DwarfDebugFileWeakRef> {
+    pub fn find_file(&self, filepath: String) -> Option<DwarfSourceFileWeakRef> {
         match self.data.iter().find(|x| 
                 x.borrow().file == filepath || x.borrow().file.rsplit('/').next().unwrap() == filepath
             )
         {
-            Some(x) => Option::from(DwarfDebugFileWeakRef { data: x.clone() }),
+            Some(x) => Option::from(DwarfSourceFileWeakRef { data: Rc::downgrade(x) }),
             None => Option::None
         }
     }
 
-    pub fn find_address(&self, address: u32) -> Option<DwarfAddressFileMappingWeakRef> {
+    pub fn find_file_from_address(&self, address: u32) -> Option<DwarfAddressFileMappingWeakRef> {
         match self.rev_data.iter().find(|x| 
             x.borrow().address == address
         )
         {
-            Some(x) => Option::from(DwarfAddressFileMappingWeakRef { data: x.clone() }),
+            Some(x) => Option::from(DwarfAddressFileMappingWeakRef { data: Rc::downgrade(x) }),
             None => Option::None
         }
     }
 }
 
-impl DwarfDebugFile {
-    pub fn new(filename: &String) -> DwarfDebugFile {
-        DwarfDebugFile {
+impl DwarfSourceFile {
+    pub fn new(filename: &String) -> DwarfSourceFile {
+        DwarfSourceFile {
             data: Vec::new(),
             file: filename.clone()
         }
@@ -149,11 +159,11 @@ impl DwarfDebugFile {
 }
 
 #[wasm_bindgen]
-pub fn read_dwarf(data: &[u8]) -> DwarfDebugLineContainer {
+pub fn read_dwarf(data: &[u8]) -> DwarfDebugSymbolContainer {
     read_dwarf_internal(data).unwrap()
 }
 
-pub fn read_dwarf_internal(data: &[u8]) -> result::Result<DwarfDebugLineContainer, gimli::Error> {
+pub fn read_dwarf_internal(data: &[u8]) -> result::Result<DwarfDebugSymbolContainer, gimli::Error> {
     let object = match object::File::parse(data) {
         Ok(x) => x,
         Err(e) => { console_log!("Err! {}", e); std::process::exit(-1) }
@@ -186,7 +196,7 @@ pub fn read_dwarf_internal(data: &[u8]) -> result::Result<DwarfDebugLineContaine
 
     // Iterate over the compilation units.
     let mut iter = dwarf.units();
-    let mut files = DwarfDebugLineContainer::new();
+    let mut files = DwarfDebugSymbolContainer::new();
 
     while let Some(header) = iter.next()? {
         let unit = dwarf.unit(header)?;
@@ -226,10 +236,6 @@ pub fn read_dwarf_internal(data: &[u8]) -> result::Result<DwarfDebugLineContaine
                         Some(line) => line.get(),
                         None => 0,
                     };
-                    let column = match row.column() {
-                        gimli::ColumnType::LeftEdge => 0,
-                        gimli::ColumnType::Column(column) => column.get(),
-                    };
 
                     match files.data.iter().position(|x| x.borrow().file == path.to_str().unwrap()) {
                         Some(x) => {
@@ -246,7 +252,7 @@ pub fn read_dwarf_internal(data: &[u8]) -> result::Result<DwarfDebugLineContaine
                                 address: row.address() as u32 + base_address
                             })));
                             
-                            files.data.push(Rc::new(RefCell::new(DwarfDebugFile {
+                            files.data.push(Rc::new(RefCell::new(DwarfSourceFile {
                                 data,
                                 file: String::from(path.to_str().unwrap())
                             })))
