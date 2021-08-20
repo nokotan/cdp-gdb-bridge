@@ -8,12 +8,13 @@ async function main() {
         // connect to endpoint
         client = await CDP();
         // extract domains
-        const { Debugger, Page } = client;
+        const { Debugger, Page, Runtime } = client;
 
         await Debugger.enable({});
         await Page.enable();
+        await Runtime.enable();
 
-        const manager = new DebugSessionManager(Debugger, Page);
+        const manager = new DebugSessionManager(Debugger, Page, Runtime);
         const commandReader = new CommandReader(manager);
 
         await commandReader.start();

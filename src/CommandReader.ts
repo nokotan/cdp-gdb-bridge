@@ -15,6 +15,8 @@ export class CommandReader {
             [ 'u', this.session.stepOut ],
             [ 'b', this.session.setBreakPoint ],
             [ 'd', this.session.removeBreakPoint ],
+            [ 'l', this.session.showLine ],
+            [ 'p', this.session.listVariable ],
         ]);
     }
 

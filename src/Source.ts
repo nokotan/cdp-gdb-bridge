@@ -4,7 +4,7 @@ import { DwarfDebugSymbolContainer } from "../crates/dwarf/pkg"
 export class WebAssemblyFile {
 
     scriptID: Protocol.Runtime.ScriptId;
-    private dwarf: DwarfDebugSymbolContainer;
+    dwarf: DwarfDebugSymbolContainer;
 
     constructor(_scriptID: Protocol.Runtime.ScriptId, wasm: DwarfDebugSymbolContainer) {
         this.scriptID = _scriptID;
