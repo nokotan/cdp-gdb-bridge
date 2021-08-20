@@ -2,8 +2,7 @@ import { WebAssemblyFile } from "./Source"
 import { existsSync, readFileSync } from "fs"
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import { DwarfDebugSymbolContainer, read_dwarf } from "../crates/dwarf/pkg"
-import { Session } from "inspector";
+import { read_dwarf } from "../crates/dwarf/pkg";
 
 class DebugSession {
 
@@ -274,13 +273,79 @@ export class DebugSessionManager implements DebuggerCommand {
             console.log(`paused at <${e.callFrames[0].url}+${pausedLocation.columnNumber!}>`)
         }
 
-        this.sessionState = new PausedSessionState(this.debugger, this.session, [ pausedFileLocation ], rawPausedFileLocation);
+        const wasmStackObject = (await this.runtime.getProperties(
+            { objectId: e.callFrames[0].scopeChain[0].object.objectId! }
+        )).result;
 
-        // const mayBeObject = await this.runtime.getProperties({objectId: e.callFrames[0].scopeChain[2].object.objectId!})
-        // const mayBeMemory = await this.runtime.getProperties({objectId: mayBeObject.result.filter(x => x.name == 'memories')[0].value!.objectId!})
-        // const Memory = mayBeMemory.result[0];
-        // const MemoryProp = await this.runtime.getProperties({objectId: Memory.value!.objectId!})
-        // console.log(MemoryProp);
+        const wasmStacks = (await this.runtime.getProperties({
+            objectId: wasmStackObject[0].value!.objectId!
+        })).result;
+
+        console.log('Stacks:')
+
+        wasmStacks
+            .forEach(async x => {
+                const result = await this.runtime.getProperties({
+                    objectId: x.value!.objectId!
+                });
+
+                const type = result.result[0].value!.value!;
+                const value = result.result[1].value!.value!;
+                
+                console.log(`  ${value}: ${type}`);
+            });
+
+        const wasmLocalObject = (await this.runtime.getProperties(
+            { objectId: e.callFrames[0].scopeChain[1].object.objectId! }
+        )).result;
+
+        console.log('Locals:')
+
+        wasmLocalObject
+            .forEach(async x => {
+                const result = await this.runtime.getProperties({
+                    objectId: x.value!.objectId!
+                });
+
+                const type = result.result[0].value!.value!;
+                const value = result.result[1].value!.value!;
+                
+                console.log(`  ${value}: ${type}`);
+            });
+
+        const wasmModuleObject = (await this.runtime.getProperties(
+            { objectId: e.callFrames[0].scopeChain[2].object.objectId! }
+        )).result;
+
+        const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
+        const wasmMemoryObject = wasmModuleObject.filter(x => x.name == 'memories')[0];
+
+        const wasmGlobals = (await this.runtime.getProperties({
+            objectId: wasmGlobalsObject.value!.objectId!
+        })).result;
+
+        console.log('Globals:')
+
+        wasmGlobals
+            .forEach(async x => {
+                const result = await this.runtime.getProperties({
+                    objectId: x.value!.objectId!
+                });
+
+                const type = result.result[0].value!.value!;
+                const value = result.result[1].value!.value!;
+                
+                console.log(`  ${value}: ${type}`);
+            });
+
+        // const evalResult = await this.debugger.evaluateOnCallFrame({
+        //     callFrameId: e.callFrames[0].callFrameId,
+        //     expression: 'new DataView(memories[0].buffer)'
+        // });
+
+        // console.log(evalResult.result);
+
+        this.sessionState = new PausedSessionState(this.debugger, this.session, [ pausedFileLocation ], rawPausedFileLocation);
     }
 
     private async onResumed() {
@@ -289,6 +354,6 @@ export class DebugSessionManager implements DebuggerCommand {
 
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
         console.log('Page navigated.');
-        // this.session.reset();
+        this.session.reset();
     }
 }

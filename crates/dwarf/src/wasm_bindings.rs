@@ -1,4 +1,5 @@
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::*;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use super::{
@@ -6,10 +7,67 @@ use super::{
 };
 
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Value {
+    I32(i32),
+    I64(i64),
+    F32(f32),
+    F64(f64),
+}
+
+#[wasm_bindgen]
+pub struct WasmValue {
+    value: Value
+}
+
+#[wasm_bindgen]
+impl WasmValue {
+    pub fn from_i32(v: i32) -> WasmValue {
+        WasmValue {
+            value: Value::I32(v)
+        }
+    }
+
+    pub fn from_i64(v: i64) -> WasmValue {
+        WasmValue {
+            value: Value::I64(v)
+        }
+    }
+
+    pub fn from_f32(v: f32) -> WasmValue {
+        WasmValue {
+            value: Value::F32(v)
+        }
+    }
+
+    pub fn from_f64(v: f64) -> WasmValue {
+        WasmValue {
+            value: Value::F64(v)
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmValueVector {
+    data: Vec<WasmValue>
+}
+
+#[wasm_bindgen]
+impl WasmValueVector {
+    pub fn new() -> WasmValueVector {
+        WasmValueVector { data: Vec::new() }
+    }
+
+    pub fn push(&mut self, v: WasmValue) {
+        self.data.push(v);
+    }
+}
+
+
 
 #[wasm_bindgen]
 pub struct DwarfLineAddressMappingWeakRef {
-    data: Weak<RefCell<DwarfLineAddressMapping>>
+    pub(crate) data: Weak<RefCell<DwarfLineAddressMapping>>
 }
 
 #[wasm_bindgen]
@@ -27,7 +85,7 @@ impl DwarfLineAddressMappingWeakRef {
 
 #[wasm_bindgen]
 pub struct DwarfAddressFileMappingWeakRef {
-    data: Weak<RefCell<DwarfAddressFileMapping>>
+    pub(crate) data: Weak<RefCell<DwarfAddressFileMapping>>
 }
 
 #[wasm_bindgen]
@@ -45,7 +103,7 @@ impl DwarfAddressFileMappingWeakRef {
 
 #[wasm_bindgen]
 pub struct DwarfSourceFileWeakRef {
-    data: Weak<RefCell<DwarfSourceFile>>
+    pub(crate) data: Weak<RefCell<DwarfSourceFile>>
 }
 
 #[wasm_bindgen]

@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 use gimli::Unit;
 use num_bigint::{BigInt, BigUint, Sign};
 
+use super::utils::{ clone_string_attribute };
 
 pub fn format_object<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
