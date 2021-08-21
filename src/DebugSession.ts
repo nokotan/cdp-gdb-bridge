@@ -2,7 +2,8 @@ import { WebAssemblyFile } from "./Source"
 import { existsSync, readFileSync } from "fs"
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import { read_dwarf } from "../crates/dwarf/pkg";
+import { read_dwarf, WasmValueVector } from "../crates/dwarf/pkg";
+import { createWasmValueStore } from './InterOp'
 
 class DebugSession {
 
@@ -57,11 +58,30 @@ class DebugSession {
 
         return undefined;
     }
+
+    getVariableValue(expr: string, address: number, state: WebAssemblyDebugState) {
+        for (const x of this.sources) {
+            const list = x.dwarf.get_variable_info(
+                expr,
+                state.locals,
+                state.globals,
+                state.stacks,
+                address
+            );
+
+            if (list) {
+                return list;
+            }
+        }
+
+        return undefined;
+    }
 }
 
 interface DebuggerDumpCommand {
     showLine(): Promise<void>;
     listVariable(): Promise<void>;
+    dumpVariable(expr: string): Promise<void>;
 }
 
 interface DebuggerWorkflowCommand {
@@ -103,6 +123,20 @@ class NormalSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
     async listVariable() {
         console.warn('Debugger not paused!');
     }
+    async dumpVariable() {
+        console.warn('Debugger not paused!');
+    }
+}
+
+interface MemoryEvaluator {
+    evaluate(address: number, size: number): Promise<number[]>;
+}
+
+interface WebAssemblyDebugState {
+    stacks: WasmValueVector;
+    locals: WasmValueVector;
+    globals: WasmValueVector;
+    momery: MemoryEvaluator;
 }
 
 class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand {
@@ -110,12 +144,14 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
     debugSession: DebugSession;
     stackFrame: FileLocation[];
     pausedWasmFile: FileLocation;
+    state: WebAssemblyDebugState;
 
-    constructor(_debugger: ProtocolApi.DebuggerApi, _debugSession: DebugSession, _stackFrame: FileLocation[], _pausedWasmFile: FileLocation) {
+    constructor(_debugger: ProtocolApi.DebuggerApi, _debugSession: DebugSession, _stackFrame: FileLocation[], _pausedWasmFile: FileLocation, _state: WebAssemblyDebugState) {
         this.debugger = _debugger;
         this.stackFrame = _stackFrame;
         this.pausedWasmFile = _pausedWasmFile;
         this.debugSession = _debugSession;
+        this.state = _state;
     }
 
     async stepOver() {
@@ -164,6 +200,20 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
             console.log(`  ${name}: ${typeName}`);
         }
     }
+
+    async dumpVariable(expr: string) {
+        const varlist = this.debugSession.getVariableValue(expr, this.pausedWasmFile.columnNumber!, this.state);
+
+        if (!varlist) {
+            console.log('not available.');
+            return;
+        }
+
+        const result = await this.state.momery.evaluate(varlist.address, varlist.byte_size);
+        varlist.set_memory_slice(new Uint8Array(result));
+
+        varlist.print();
+    }
 }
 
 export class DebugSessionManager implements DebuggerCommand {
@@ -210,6 +260,10 @@ export class DebugSessionManager implements DebuggerCommand {
 
     async listVariable() {
         await this.sessionState.listVariable();
+    }
+
+    async dumpVariable(expr: string) {
+        await this.sessionState.dumpVariable(expr);
     }
 
     async setBreakPoint(location: string) {
@@ -281,71 +335,49 @@ export class DebugSessionManager implements DebuggerCommand {
             objectId: wasmStackObject[0].value!.objectId!
         })).result;
 
-        console.log('Stacks:')
-
-        wasmStacks
-            .forEach(async x => {
-                const result = await this.runtime.getProperties({
-                    objectId: x.value!.objectId!
-                });
-
-                const type = result.result[0].value!.value!;
-                const value = result.result[1].value!.value!;
-                
-                console.log(`  ${value}: ${type}`);
-            });
+        const StacksStore = await createWasmValueStore(this.runtime, wasmStacks);
 
         const wasmLocalObject = (await this.runtime.getProperties(
             { objectId: e.callFrames[0].scopeChain[1].object.objectId! }
         )).result;
 
-        console.log('Locals:')
-
-        wasmLocalObject
-            .forEach(async x => {
-                const result = await this.runtime.getProperties({
-                    objectId: x.value!.objectId!
-                });
-
-                const type = result.result[0].value!.value!;
-                const value = result.result[1].value!.value!;
-                
-                console.log(`  ${value}: ${type}`);
-            });
+        const LocalsStore = await createWasmValueStore(this.runtime, wasmLocalObject);
 
         const wasmModuleObject = (await this.runtime.getProperties(
             { objectId: e.callFrames[0].scopeChain[2].object.objectId! }
         )).result;
 
         const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
-        const wasmMemoryObject = wasmModuleObject.filter(x => x.name == 'memories')[0];
+        // const wasmMemoryObject = wasmModuleObject.filter(x => x.name == 'memories')[0];
 
         const wasmGlobals = (await this.runtime.getProperties({
             objectId: wasmGlobalsObject.value!.objectId!
         })).result;
 
-        console.log('Globals:')
+        const GlobalsStore = await createWasmValueStore(this.runtime, wasmGlobals);
 
-        wasmGlobals
-            .forEach(async x => {
-                const result = await this.runtime.getProperties({
-                    objectId: x.value!.objectId!
+        const evaluator = 
+        { 
+            debugger: this.debugger,
+            async evaluate (address: number, size: number) {
+                const evalResult = await this.debugger.evaluateOnCallFrame({
+                    callFrameId: e.callFrames[0].callFrameId,
+                    expression: `new Uint8Array(memories[0].buffer).subarray(${address}, ${address + size})`,
+                    returnByValue: true
                 });
 
-                const type = result.result[0].value!.value!;
-                const value = result.result[1].value!.value!;
-                
-                console.log(`  ${value}: ${type}`);
-            });
+                return Object.values(evalResult.result.value) as number[];
+            }
+        }
 
-        // const evalResult = await this.debugger.evaluateOnCallFrame({
-        //     callFrameId: e.callFrames[0].callFrameId,
-        //     expression: 'new DataView(memories[0].buffer)'
-        // });
+        const state: WebAssemblyDebugState = {
+            stacks: StacksStore,
+            locals: LocalsStore,
+            globals: GlobalsStore,
+            momery: evaluator
+        }
 
-        // console.log(evalResult.result);
-
-        this.sessionState = new PausedSessionState(this.debugger, this.session, [ pausedFileLocation ], rawPausedFileLocation);
+        this.sessionState = new PausedSessionState(this.debugger, this.session, [ pausedFileLocation ], rawPausedFileLocation, state);
     }
 
     private async onResumed() {

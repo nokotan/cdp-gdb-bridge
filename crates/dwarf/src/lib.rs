@@ -21,11 +21,13 @@ mod dwarf;
 use crate::wasm_bindings::{ 
     DwarfLineAddressMappingWeakRef, 
     DwarfAddressFileMappingWeakRef,
-    DwarfSourceFileWeakRef
+    DwarfSourceFileWeakRef,
+    WasmValue, WasmValueVector, Value
 };
 
 use crate::dwarf::*;
 use crate::utils::{ clone_string_attribute };
+use crate::format::{ format_object };
 
 type DwarfReader = EndianRcSlice<LittleEndian>;
 type Dwarf = gimli::Dwarf<DwarfReader>;
@@ -72,18 +74,18 @@ impl DwarfSourceFile {
 
 
 #[wasm_bindgen]
-pub struct VariableInfo {
+pub struct Variable {
     name: String,
     type_name: String,
 }
 
 #[wasm_bindgen]
-pub struct VariableInfoVector {
-    data: Vec<VariableInfo>
+pub struct VariableVector {
+    data: Vec<Variable>
 }
 
 #[wasm_bindgen]
-impl VariableInfoVector {
+impl VariableVector {
     pub fn size(&self) -> usize {
         self.data.len()
     }
@@ -94,6 +96,32 @@ impl VariableInfoVector {
 
     pub fn at_type_name(&self, index: usize) -> String {
         self.data[index].type_name.clone()
+    }
+}
+
+#[wasm_bindgen]
+pub struct VariableInfo {
+    pub address: usize,
+    pub byte_size: usize,
+
+    name: String,
+    memory_slice: Vec<u8>,
+
+    tag: gimli::DwTag,
+    encoding: gimli::DwAte,
+}
+
+#[wasm_bindgen]
+impl VariableInfo {
+    pub fn set_memory_slice(&mut self, data: &[u8]) {
+        self.memory_slice = data.to_vec();
+    }
+
+    pub fn print(&self) {
+        match print_variable_info_impl(self) {
+            Ok(()) => {},
+            Err(_) => { console_log!("print failed!"); }
+        };
     }
 }
 
@@ -149,10 +177,23 @@ impl DwarfDebugSymbolContainer {
         }
     }
 
-    pub fn variable_name_list(&self, code_offset: usize) -> Option<VariableInfoVector> {
+    pub fn variable_name_list(&self, code_offset: usize) -> Option<VariableVector> {
         match variable_name_list_impl(self, code_offset) {
-            Ok(x) => x,
+            Ok(x) => Some(VariableVector{ data: x }),
             Err(_) => None
+        }
+    }
+
+    pub fn get_variable_info(&self, 
+        opts: String,
+        locals: &WasmValueVector,
+        globals: &WasmValueVector,
+        stacks: &WasmValueVector,
+        code_offset: usize) -> Option<VariableInfo> {
+
+        match get_variable_info_impl(self, &opts, locals, globals, stacks, code_offset) {
+            Ok(x) => x,
+            Err(e) => { console_log!("{}", e); None }
         }
     }
 }
@@ -169,7 +210,7 @@ pub fn read_dwarf(data: &[u8]) -> DwarfDebugSymbolContainer {
     files
 }
 
-pub fn load_dwarf_files(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> Result<()> {
+fn load_dwarf_files(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> Result<()> {
     let object = object::File::parse(data)?;
     let base_address = object.section_by_name("<code>").unwrap().file_range().unwrap().0 as u32;
 
@@ -251,10 +292,10 @@ pub fn load_dwarf_files(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> R
         }
     };
 
-    return Ok(());
+    Ok(())
 }
 
-pub fn load_dwarf_functions(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> Result<()>  {
+fn load_dwarf_functions(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> Result<()>  {
     let dwarf = parse_dwarf(data)?;
 
     // Iterate over the compilation units.
@@ -286,10 +327,10 @@ pub fn load_dwarf_functions(data: &[u8], files: &mut DwarfDebugSymbolContainer) 
         }
     };
 
-    return Ok(());
+    Ok(())
 }
 
-fn variable_name_list_impl(container: &DwarfDebugSymbolContainer, code_offset: usize) -> Result<Option<VariableInfoVector>> {
+fn variable_name_list_impl(container: &DwarfDebugSymbolContainer, code_offset: usize) -> Result<Vec<Variable>> {
     let object = object::File::parse(&*container.buffer)?;
     let base_address = object.section_by_name("<code>").unwrap().file_range().unwrap().0 as u32;
 
@@ -314,10 +355,10 @@ fn variable_name_list_impl(container: &DwarfDebugSymbolContainer, code_offset: u
     let unit = dwarf.unit(header)?;
     let variables = subroutine_variables(&dwarf, &unit, &subroutine)?;
 
-    Ok(Some(VariableInfoVector { data: variables
+    Ok(variables
         .iter()
         .map(|var| {
-            let mut v = VariableInfo {
+            let mut v = Variable {
                 name: "<<not parsed yet>>".to_string(),
                 type_name: "<<not parsed yet>>".to_string(),
             };
@@ -330,7 +371,66 @@ fn variable_name_list_impl(container: &DwarfDebugSymbolContainer, code_offset: u
             v
         })
         .collect()
-    }))
+    )
+}
+
+fn get_variable_info_impl(
+    container: &DwarfDebugSymbolContainer,
+    opts: &String,
+    locals: &WasmValueVector,
+    globals: &WasmValueVector,
+    stacks: &WasmValueVector,
+    code_offset: usize) -> Result<Option<VariableInfo>> {
+
+    let object = object::File::parse(&*container.buffer)?;
+    let base_address = object.section_by_name("<code>").unwrap().file_range().unwrap().0 as usize;
+
+    let code_offset = code_offset - base_address;
+
+    let frame_base = match get_frame_base_impl(container, code_offset)? {
+        Some(loc) => {
+            let offset = match loc {
+                WasmLoc::Global(idx) => globals.data
+                    .get(*idx as usize)
+                    .ok_or(anyhow!("failed to get base global"))?,
+                WasmLoc::Local(idx) => locals.data
+                    .get(*idx as usize)
+                    .ok_or(anyhow!("failed to get base local"))?,
+                WasmLoc::Stack(idx) => stacks.data
+                    .get(*idx as usize)
+                    .ok_or(anyhow!("failed to get base stack"))?,
+            };
+            let offset = match offset.value {
+                Value::I32(v) => v as u64,
+                Value::I64(v) => v as u64,
+                _ => Err(anyhow!("unexpected frame base value: {:?}", offset.value))?,
+            };
+            FrameBase::WasmFrameBase(offset)
+        }
+        None => {
+            return Err(anyhow!("failed to get base stack"));
+            // let argument_count = debugger
+            //     .current_frame()
+            //     .ok_or(anyhow!("function frame not found"))?
+            //     .argument_count;
+            // let offset = locals
+            //     .get(argument_count + 2)
+            //     .ok_or(anyhow!("failed to get rbp"))?
+            //     .clone();
+            // let offset = match offset {
+            //     WasmValue::I32(v) => v as u64,
+            //     _ => Err(anyhow!("unexpected frame base value: {:?}", offset))?,
+            // };
+            // FrameBase::RBP(offset)
+        }
+    };
+    
+    display_variable_info_impl(
+        container,
+        code_offset,
+        frame_base,
+        opts
+    )
 }
 
 fn get_frame_base_impl(container: &DwarfDebugSymbolContainer, code_offset: usize) -> Result<&Option<WasmLoc>> {
@@ -344,21 +444,21 @@ fn get_frame_base_impl(container: &DwarfDebugSymbolContainer, code_offset: usize
         Some(s) => s,
         None => return Err(anyhow!("failed to determine subroutine")),
     };
-    return Ok(&subroutine.frame_base);
+
+    Ok(&subroutine.frame_base)
 }
 
-fn display_variable_impl(
+fn display_variable_info_impl(
     container: &DwarfDebugSymbolContainer,
     code_offset: usize,
     frame_base: FrameBase,
-    memory: &[u8],
-    name: String,
-) -> Result<()> {
-    let offset = &(code_offset as u64);
+    name: &String,
+) -> Result<Option<VariableInfo>> {
+    let offset = code_offset as u64;
     let subroutine = match container
         .subroutines
         .iter()
-        .filter(|s| s.pc.contains(offset))
+        .filter(|s| s.pc.contains(&offset))
         .next()
     {
         Some(s) => s,
@@ -368,7 +468,7 @@ fn display_variable_impl(
     let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
         Some(header) => header,
         None => {
-            return Ok(());
+            return Ok(None);
         }
     };
 
@@ -379,7 +479,7 @@ fn display_variable_impl(
         .iter()
         .position(|v| {
             if let Some(vname) = v.name.clone() {
-                vname == name
+                vname == *name
             } else {
                 false
             }
@@ -411,31 +511,108 @@ fn display_variable_impl(
         Some(p) => p,
         None => {
             println!("failed to get piece of variable");
-            return Ok(());
+            return Ok(None);
         }
     };
 
     if let Some(offset) = var.ty_offset {
-        use format::format_object;
         match piece.location {
             gimli::Location::Address { address } => {
                 let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
                 let root = tree.root()?;
-                console_log!(
-                    "  {}",
-                    format_object(
-                        root,
-                        &memory[(address as usize)..],
-                        subroutine.encoding,
-                        &dwarf,
-                        &unit
-                    )?
-                );
+                
+                return match create_variable(root, address, &dwarf, &unit) {
+                    Ok(x) => Ok(Some(x)),
+                    Err(_) => Ok(None)
+                };
             }
             _ => unimplemented!(),
         }
     } else {
         println!("no explicit type");
     }
+    Ok(None)
+}
+
+fn create_variable<R: gimli::Reader>(
+    node: gimli::EntriesTreeNode<R>,
+    address: u64,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R>,
+) -> Result<VariableInfo> {
+    match node.entry().tag() {
+        gimli::DW_TAG_base_type => {
+            let entry = node.entry();
+            let name = match entry.attr_value(gimli::DW_AT_name)? {
+                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                None => "<no type name>".to_string(),
+            };
+            let byte_size = entry
+                .attr_value(gimli::DW_AT_byte_size)?
+                .and_then(|attr| attr.udata_value())
+                .ok_or(anyhow!("Failed to get byte_size"))?;
+            let encoding = entry
+                .attr_value(gimli::DW_AT_encoding)?
+                .and_then(|attr| match attr {
+                    gimli::AttributeValue::Encoding(encoding) => Some(encoding),
+                    _ => None,
+                })
+                .ok_or(anyhow!("Failed to get type encoding"))?;
+
+            Ok(VariableInfo {
+                address: address as usize,
+                byte_size: byte_size as usize,
+                name,
+                encoding,
+                tag: gimli::DW_TAG_base_type,
+                memory_slice: Vec::new()
+            })
+        }
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+            let entry = node.entry();
+            let type_name = match entry.attr_value(gimli::DW_AT_name)? {
+                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                None => "<no type name>".to_string(),
+            };
+            let mut children = node.children();
+            let mut members = vec![];
+            while let Some(child) = children.next()? {
+                match child.entry().tag() {
+                    gimli::DW_TAG_member => {
+                        let name = match child.entry().attr_value(gimli::DW_AT_name)? {
+                            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                            None => "<no member name>".to_string(),
+                        };
+                        // let ty = match entry.attr_value(gimli::DW_AT_type)? {
+                        //     Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
+                        //     _ => return Err(anyhow!("Failed to get type offset")),
+                        // };
+                        members.push(name);
+                    }
+                    _ => continue,
+                }
+            }
+            
+            Ok(VariableInfo {
+                address: address as usize,
+                byte_size: 0,
+                name: format!("{} {{\n{}\n}}", type_name, members.join(",\n")),
+                encoding: gimli::DW_ATE_signed,
+                tag: gimli::DW_TAG_class_type,
+                memory_slice: Vec::new()
+            })
+        }
+        _ => Err(anyhow!("unsupported DIE type")),
+    }
+}
+
+fn print_variable_info_impl(varinfo: &VariableInfo) -> Result<()> {
+    console_log!(
+        "{}",
+        format_object(
+            varinfo
+        )?
+    );
+
     Ok(())
 }

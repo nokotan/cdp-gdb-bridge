@@ -17,7 +17,7 @@ pub enum Value {
 
 #[wasm_bindgen]
 pub struct WasmValue {
-    value: Value
+    pub(crate) value: Value
 }
 
 #[wasm_bindgen]
@@ -49,7 +49,7 @@ impl WasmValue {
 
 #[wasm_bindgen]
 pub struct WasmValueVector {
-    data: Vec<WasmValue>
+    pub(crate) data: Vec<WasmValue>
 }
 
 #[wasm_bindgen]
