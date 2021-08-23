@@ -12,12 +12,14 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
     "wabt": "^1.0.24"
   },
   "devDependencies": {
     "@types/chrome-remote-interface": "^0.31.2",
     "@types/node": "^16.6.1",
+    "@types/vscode": "^1.59.0",
     "typescript": "^4.3.5"
   }
 }

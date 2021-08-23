@@ -1,12 +1,21 @@
 import CDP from 'chrome-remote-interface';
+import { launch, LaunchedChrome } from 'chrome-launcher';
 import { DebugSessionManager } from './DebugSession'
 import { CommandReader } from './CommandReader'
 
 async function main() {
     let client: CDP.Client | null = null;
+    let launchedBrowser: LaunchedChrome | null = null;
+    
     try {
+        launchedBrowser = await launch({
+        });
+
         // connect to endpoint
-        client = await CDP();
+        client = await CDP({
+            port: launchedBrowser.port
+        });
+
         // extract domains
         const { Debugger, Page, Runtime } = client;
 
@@ -24,6 +33,10 @@ async function main() {
         if (client) {
             console.log('session closed.');
             client.close();
+        }
+
+        if (launchedBrowser) {
+            await launchedBrowser.kill();
         }
     }
 }
