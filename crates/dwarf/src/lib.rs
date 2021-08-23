@@ -4,33 +4,27 @@ use object::{
     Object, ObjectSection
 };
 use gimli::{
-    EndianRcSlice, LittleEndian, 
     Unit, UnitOffset, Reader, AttributeValue,
-    UnitSectionOffset, UnitHeader
 };
-use std::{borrow, path};
+use std::{path};
 use anyhow::{anyhow, Result};
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::{Rc};
 
 mod format;
 mod utils;
 mod wasm_bindings;
 mod dwarf;
 
-use crate::wasm_bindings::{ 
-    DwarfLineAddressMappingWeakRef, 
+use crate::wasm_bindings::{  
     DwarfAddressFileMappingWeakRef,
     DwarfSourceFileWeakRef,
-    WasmValue, WasmValueVector, Value
+    WasmValueVector, Value
 };
 
 use crate::dwarf::*;
 use crate::utils::{ clone_string_attribute };
 use crate::format::{ format_object };
-
-type DwarfReader = EndianRcSlice<LittleEndian>;
-type Dwarf = gimli::Dwarf<DwarfReader>;
 
 #[wasm_bindgen]
 extern "C" {

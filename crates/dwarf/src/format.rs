@@ -1,10 +1,6 @@
-use std::ops::{AddAssign, SubAssign};
-
 use anyhow::{anyhow, Result};
-use gimli::Unit;
-use num_bigint::{BigInt, BigUint, Sign};
+use num_bigint::{BigInt, BigUint};
 
-use super::utils::{ clone_string_attribute };
 use super::{ VariableInfo };
 
 pub fn format_object(
