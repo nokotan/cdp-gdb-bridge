@@ -1,7 +1,7 @@
 {
   "name": "cdp-gdb-bridge",
-  "version": "1.0.1",
-  "description": "",
+  "version": "1.0.2",
+  "description": "WebAssembly on Chrome cli debugger",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -9,8 +9,11 @@
     "run": "node dist/index.js",
     "prepublish": "npm run build-crate && npm run build"
   },
-  "keywords": [],
-  "author": "",
+  "bin": {
+    "cdp-gdb-bridge": "dist/index.js"
+  },
+  "keywords": [ "webassembly" ],
+  "author": "kamenokonokotan",
   "license": "MIT",
   "dependencies": {
     "chrome-launcher": "^0.14.0",
