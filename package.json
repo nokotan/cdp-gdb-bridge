@@ -2,7 +2,7 @@
   "name": "cdp-gdb-bridge",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "build-crate": "cd crates/dwarf && wasm-pack build --target nodejs --dev",

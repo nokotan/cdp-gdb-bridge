@@ -1,0 +1,4 @@
+/.vscode
+/crates/dwarf
+!/crates/dwarf/pkg
+/src
