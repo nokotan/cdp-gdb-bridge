@@ -1,4 +1,3 @@
 /.vscode
-/crates/dwarf
-!/crates/dwarf/pkg
 /src
+/dist/*.map
