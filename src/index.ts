@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import CDP from 'chrome-remote-interface';
 import { launch, LaunchedChrome } from 'chrome-launcher';
 import { DebugSessionManager } from './DebugSession'
