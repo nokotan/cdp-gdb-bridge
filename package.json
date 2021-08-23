@@ -1,6 +1,6 @@
 {
   "name": "cdp-gdb-bridge",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "WebAssembly on Chrome cli debugger",
   "main": "dist/index.js",
   "scripts": {
