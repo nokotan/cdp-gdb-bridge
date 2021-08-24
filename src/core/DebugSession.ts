@@ -2,7 +2,7 @@ import { WebAssemblyFile } from "./Source"
 import { existsSync, readFileSync } from "fs"
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import { read_dwarf, WasmValueVector } from "../crates/dwarf/pkg/wasm_dwarf_alanyser";
+import { read_dwarf, WasmValueVector } from "../../crates/dwarf/pkg/wasm_dwarf_alanyser";
 import { createWasmValueStore } from './InterOp'
 
 class DebugSession {
@@ -212,7 +212,7 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         const result = await this.state.momery.evaluate(varlist.address, varlist.byte_size);
         varlist.set_memory_slice(new Uint8Array(result));
 
-        varlist.print();
+        console.log(varlist.print());
     }
 }
 

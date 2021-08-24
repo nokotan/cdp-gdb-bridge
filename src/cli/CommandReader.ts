@@ -1,4 +1,4 @@
-import { DebuggerCommand } from './DebugSession';
+import { DebuggerCommand } from '../core/DebugSession';
 import { createInterface } from 'readline';
 
 export class CommandReader {

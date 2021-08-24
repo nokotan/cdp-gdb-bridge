@@ -2,7 +2,7 @@
 
 import CDP from 'chrome-remote-interface';
 import { launch, LaunchedChrome } from 'chrome-launcher';
-import { DebugSessionManager } from './DebugSession'
+import { DebugSessionManager } from '../core/DebugSession'
 import { CommandReader } from './CommandReader'
 
 async function main() {
