@@ -15,6 +15,18 @@
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]
-        }
+        },
+        {
+			"name": "Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/ext/**/*.js",
+				"${workspaceFolder}/dist/ext/**/*.wasm",
+			]
+		},
     ]
 }

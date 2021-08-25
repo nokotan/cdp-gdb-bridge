@@ -1,5 +1,5 @@
 import type Protocol from 'devtools-protocol/types/protocol';
-import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg/wasm_dwarf_alanyser"
+import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg"
 
 export class WebAssemblyFile {
 

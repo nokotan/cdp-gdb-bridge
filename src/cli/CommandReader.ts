@@ -1,4 +1,4 @@
-import { DebuggerCommand } from '../core/DebugSession';
+import { DebuggerCommand, IBreakPoint, Variable } from '../core/DebugSession';
 import { createInterface } from 'readline';
 
 export class CommandReader {
@@ -9,15 +9,16 @@ export class CommandReader {
         this.session = _session;
 
         this.commandList = new Map<string, Function>([
-            [ 'c', this.session.continue ],
-            [ 'n', this.session.stepOver ],
-            [ 's', this.session.stepIn ],
-            [ 'u', this.session.stepOut ],
-            [ 'b', this.session.setBreakPoint ],
-            [ 'd', this.session.removeBreakPoint ],
-            [ 'l', this.session.showLine ],
-            [ 'i', this.session.listVariable ],
-            [ 'p', this.session.dumpVariable ],
+            [ 'r', (url: string) => this.jumpToPage(url) ],
+            [ 'c', () => this.continue() ],
+            [ 'n', () => this.stepOver() ],
+            [ 's', () => this.stepIn() ],
+            [ 'u', () => this.stepOut() ],
+            [ 'b', (location: string) => this.setBreakPoint(location) ],
+            [ 'd', (id: number) => this.removeBreakPoint(id) ],
+            [ 'l', () => this.showLine() ],
+            [ 'i', () => this.listVariable() ],
+            [ 'p', (expr: string) => this.dumpVariable(expr) ],
         ]);
     }
 
@@ -44,5 +45,59 @@ export class CommandReader {
                 })
             }
         )
+    }
+
+    async stepOver() {
+        await this.session.stepOver();
+    }
+
+    async stepIn() {
+        await this.session.stepIn();
+    }
+
+    async stepOut() {
+        await this.session.stepOut();
+    }
+
+    async continue() {
+        await this.session.continue();
+    }
+
+    async getStackFrames() {
+        const frames = await this.session.getStackFrames();
+
+        frames.forEach((x, i) => {
+            console.log(`${i}: ${x.name}`)
+        })
+    }
+
+    async showLine(): Promise<void> {
+        await this.session.showLine();
+    }
+
+    async listVariable() {
+        const variables = await this.session.listVariable();
+
+        variables.forEach(x => {
+            console.log(`${x.name}: ${x.type}`)
+        })
+    }
+
+    async dumpVariable(expr: string) {
+        const text = await this.session.dumpVariable(expr);
+        console.log(`${text}`)
+    }
+
+    async setBreakPoint(location: string) {
+        const bp = await this.session.setBreakPoint(location);
+        console.log(`Set Breakpoint: ${bp.id}`)
+    }
+
+    async removeBreakPoint(id: number) {
+        await this.session.removeBreakPoint(id);
+    }
+
+    async jumpToPage(url: string) {
+        await this.session.jumpToPage(url);
     }
 }

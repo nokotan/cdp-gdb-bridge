@@ -2,28 +2,89 @@
   "name": "cdp-gdb-bridge",
   "version": "1.0.3",
   "description": "WebAssembly on Chrome cli debugger",
-  "main": "dist/index.js",
+  "main": "dist/vscode/extension.js",
   "scripts": {
     "build": "tsc",
-    "build-crate": "cd crates/dwarf && wasm-pack build --target nodejs",
-    "run": "node dist/index.js",
+    "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
+    "run": "node dist/cli/index.js",
     "prepublish": "npm run build-crate && npm run build"
   },
   "bin": {
-    "cdp-gdb-bridge": "dist/index.js"
+    "cdp-gdb-bridge": "dist/cli/index.js"
   },
-  "keywords": [ "webassembly" ],
+  "keywords": [
+    "webassembly"
+  ],
   "author": "kamenokonokotan",
   "license": "MIT",
   "dependencies": {
     "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
+    "vscode-debugadapter": "^1.48.0",
     "wabt": "^1.0.24"
   },
   "devDependencies": {
     "@types/chrome-remote-interface": "^0.31.2",
     "@types/node": "^16.6.1",
     "@types/vscode": "^1.59.0",
-    "typescript": "^4.3.5"
+    "typescript": "^4.3.5",
+    "vsce": "^1.96.1"
+  },
+  "activationEvents": [
+    "onDebugResolve:wasm",
+    "onDebugDynamicConfigurations:wasm"
+  ],
+  "engines": {
+    "vscode": "^1.59.0"
+  },
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "wasm",
+        "languages": [
+          "webassembly"
+        ],
+        "label": "Mock Debug",
+        "program": "./dist/vscode/dapServer.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "Absolute path to a text file.",
+                "default": "${workspaceFolder}/${command:AskForProgramName}"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "wasm",
+            "request": "launch",
+            "name": "Ask for file name",
+            "url": "${workspaceFolder}/${command:AskForProgramName}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Mock Debug: Launch",
+            "description": "A new configuration for 'debugging' a user selected markdown file.",
+            "body": {
+              "type": "mock",
+              "request": "launch",
+              "name": "Ask for file name",
+              "url": "^\"\\${workspaceFolder}/\\${command:AskForProgramName}\""
+            }
+          }
+        ],
+        "variables": {
+          "AskForProgramName": "extension.mock-debug.getProgramName"
+        }
+      }
+    ]
   }
 }

@@ -1,6 +1,6 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import { WasmValue, WasmValueVector } from "../../crates/dwarf/pkg/wasm_dwarf_alanyser";
+import { WasmValue, WasmValueVector } from "../../crates/dwarf/pkg";
 
 export async function createWasmValueStore(runtime: ProtocolApi.RuntimeApi, data: Protocol.Runtime.PropertyDescriptor[]) {
 

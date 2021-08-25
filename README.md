@@ -21,11 +21,13 @@ Start Loading http://localhost:8080/index.wasm...
 
 | Syntax | |
 |:--:|:--:|
-| b (FileName):(LineNumber| Set Breakpoint |
+| b (FileName):(LineNumber) | Set Breakpoint |
+| d (breakpoint ID | Delete Breakpoint |
 | n | Step-Over |
 | s | Step-In |
 | u | Step-Out |
 | c | Continue |
+| l | Show Source File around Current Frame |
 | i | Show Local Variables Name |
 | p (VariableName) | Evaluate Local Variable |
 

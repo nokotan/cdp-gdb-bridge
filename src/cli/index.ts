@@ -4,6 +4,13 @@ import CDP from 'chrome-remote-interface';
 import { launch, LaunchedChrome } from 'chrome-launcher';
 import { DebugSessionManager } from '../core/DebugSession'
 import { CommandReader } from './CommandReader'
+import { DebugAdapter } from '../core/DebugAdapterInterface';
+
+class DummyDebugAdapter implements DebugAdapter {
+    sendEvent() {
+
+    }
+}
 
 async function main() {
     let client: CDP.Client | null = null;
@@ -25,7 +32,7 @@ async function main() {
         await Page.enable();
         await Runtime.enable();
 
-        const manager = new DebugSessionManager(Debugger, Page, Runtime);
+        const manager = new DebugSessionManager(Debugger, Page, Runtime, new DummyDebugAdapter());
         const commandReader = new CommandReader(manager);
 
         await commandReader.start();

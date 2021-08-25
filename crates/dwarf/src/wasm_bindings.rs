@@ -85,17 +85,17 @@ impl DwarfLineAddressMappingWeakRef {
 
 #[wasm_bindgen]
 pub struct DwarfAddressFileMappingWeakRef {
-    pub(crate) data: Weak<RefCell<DwarfAddressFileMapping>>
+    pub(crate) data: Weak<DwarfAddressFileMapping>
 }
 
 #[wasm_bindgen]
 impl DwarfAddressFileMappingWeakRef {
     pub fn line(&self) -> u32 {
-        self.data.upgrade().unwrap().borrow().line
+        self.data.upgrade().unwrap().line
     }
 
     pub fn file(&self) -> String {
-        self.data.upgrade().unwrap().borrow().file.clone()
+        self.data.upgrade().unwrap().file.clone()
     }
 }
 

@@ -45,12 +45,14 @@ pub struct DwarfLineAddressMapping {
     address: u32
 }
 
+#[wasm_bindgen]
 pub struct DwarfAddressFileMapping {
     file: String,
     line: u32,
     address: u32
 }
 
+#[wasm_bindgen]
 pub struct DwarfSourceFile {
     data: Vec<Rc<RefCell<DwarfLineAddressMapping>>>,
     file: String
@@ -111,11 +113,11 @@ impl VariableInfo {
         self.memory_slice = data.to_vec();
     }
 
-    pub fn print(&self) {
+    pub fn print(&self) -> Option<String> {
         match print_variable_info_impl(self) {
-            Ok(()) => {},
-            Err(_) => { console_log!("print failed!"); }
-        };
+            Ok(str) => { Some(str) },
+            Err(_) => { None }
+        }
     }
 }
 
@@ -124,7 +126,7 @@ impl VariableInfo {
 #[wasm_bindgen]
 pub struct DwarfDebugSymbolContainer {
     data: Vec<Rc<RefCell<DwarfSourceFile>>>,
-    rev_data: Vec<Rc<RefCell<DwarfAddressFileMapping>>>,
+    rev_data: Vec<Rc<DwarfAddressFileMapping>>,
 
     subroutines: Vec<Subroutine>,
     buffer: Rc<[u8]>
@@ -163,7 +165,7 @@ impl DwarfDebugSymbolContainer {
 
     pub fn find_file_from_address(&self, address: u32) -> Option<DwarfAddressFileMappingWeakRef> {
         match self.rev_data.iter().find(|x| 
-            x.borrow().address == address
+            x.address == address
         )
         {
             Some(x) => Option::from(DwarfAddressFileMappingWeakRef { data: Rc::downgrade(x) }),
@@ -274,13 +276,13 @@ fn load_dwarf_files(data: &[u8], files: &mut DwarfDebugSymbolContainer) -> Resul
                         }
                     }
 
-                    files.rev_data.push(Rc::new(RefCell::new({
+                    files.rev_data.push(Rc::new({
                         DwarfAddressFileMapping {
                             address: row.address() as u32 + base_address,
                             line: line as u32,
                             file: String::from(path.to_str().unwrap())
                         }
-                    })))
+                    }))
                 }
             }    
         }
@@ -600,13 +602,8 @@ fn create_variable<R: gimli::Reader>(
     }
 }
 
-fn print_variable_info_impl(varinfo: &VariableInfo) -> Result<()> {
-    console_log!(
-        "{}",
-        format_object(
-            varinfo
-        )?
-    );
-
-    Ok(())
+fn print_variable_info_impl(varinfo: &VariableInfo) -> Result<String> {
+    Ok(format_object(
+        varinfo
+    )?)
 }
