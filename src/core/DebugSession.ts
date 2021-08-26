@@ -1,13 +1,14 @@
-import { WebAssemblyFile } from "./Source"
-import { existsSync, readFileSync } from "fs"
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import { read_dwarf, WasmValueVector } from "../../crates/dwarf/pkg";
-import { createWasmValueStore } from './InterOp'
-import { DebugAdapter } from './DebugAdapterInterface';
 import {
 	StoppedEvent
 } from 'vscode-debugadapter';
+import { WebAssemblyFile } from "./Source"
+import { read_dwarf, WasmValueVector } from "../../crates/dwarf/pkg";
+import { createWasmValueStore } from './InterOp'
+import { DebugAdapter } from './DebugAdapterInterface';
+import { existsSync, readFileSync } from "fs"
+
 
 export interface Variable {
     name: string;
@@ -209,7 +210,7 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
     }
 
     async stepIn() {
-        await this.debugger.stepOver({});
+        await this.debugger.stepInto({});
     }
 
     async stepOut() {
@@ -368,7 +369,7 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     async stepIn() {
-        await this.sessionState.stepOver();
+        await this.sessionState.stepIn();
     }
 
     async stepOut() {

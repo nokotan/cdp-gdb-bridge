@@ -1,16 +1,13 @@
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { DebugAdapter } from '../core/DebugAdapterInterface';
-import { DebuggerCommand } from '../core/DebugSession';
 import {
-	Logger, logger,
 	LoggingDebugSession,
-	InitializedEvent, TerminatedEvent, StoppedEvent, BreakpointEvent, OutputEvent,
-	ProgressStartEvent, ProgressUpdateEvent, ProgressEndEvent, InvalidatedEvent,
+	InitializedEvent,
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint
 } from 'vscode-debugadapter';
 import { launch, LaunchedChrome } from 'chrome-launcher';
-import CDP, { Protocol } from 'chrome-remote-interface';
-import { DebugSessionManager, Variable } from '../core/DebugSession'
+import CDP from 'chrome-remote-interface';
+import { DebugSessionManager, Variable, DebuggerCommand } from '../core/DebugSession'
+import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
 
 /**
@@ -141,6 +138,11 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
 		this.session?.stepOut();
+		this.sendResponse(response);
+	}
+
+	protected nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
+		this.session?.stepOver();
 		this.sendResponse(response);
 	}
 
