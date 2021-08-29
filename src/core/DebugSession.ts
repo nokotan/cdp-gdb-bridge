@@ -4,7 +4,7 @@ import {
 	StoppedEvent
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
-import { read_dwarf, WasmValueVector } from "../../crates/dwarf/pkg";
+import { WasmValueVector, DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
 import { createWasmValueStore } from './InterOp'
 import { DebugAdapter } from './DebugAdapterInterface';
 import { existsSync, readFileSync } from "fs"
@@ -89,7 +89,7 @@ class DebugSession {
                 return {
                     scriptId: x.scriptID,
                     line: 0,
-                    column: address.address()
+                    column: address
                 };
             }
         }
@@ -490,10 +490,10 @@ export class DebugSessionManager implements DebuggerCommand {
             const response = await this.debugger.getScriptSource({ scriptId: e.scriptId });
             const buffer = Buffer.from(response?.bytecode!, 'base64');
 
-            const container = read_dwarf(new Uint8Array(buffer));
+            const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
             this.session.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
-            console.log(`Found Source: ${container.size()} files`);
+            console.log(`Finish Loading ${e.url}`);
         }
     }
 
@@ -510,7 +510,7 @@ export class DebugSessionManager implements DebuggerCommand {
                     name: v.functionName,
                     instruction: v.location.columnNumber,
                     file: dwarfLocation?.file() || v.url,
-                    line: dwarfLocation?.line() || v.location.lineNumber,
+                    line: dwarfLocation?.line || v.location.lineNumber,
                 }
             };
         });

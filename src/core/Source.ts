@@ -1,5 +1,5 @@
 import type Protocol from 'devtools-protocol/types/protocol';
-import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg"
+import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg"
 
 export class WebAssemblyFile {
 
@@ -16,11 +16,13 @@ export class WebAssemblyFile {
     }
 
     findFileFromLocation(loc: Protocol.Debugger.Location) {
-        return this.dwarf.find_file_from_address(loc.columnNumber!)
+        return this.dwarf.find_file_info_from_address(loc.columnNumber!)
     }
 
     findAddressFromFileLocation(file: string, lineNumber: number) {
-        const fileRef = this.dwarf.find_file(file);
-        return fileRef && fileRef.find_address_from_line(lineNumber);
+        const wasmLineInfo = WasmLineInfo.new(file, lineNumber);
+        const address = this.dwarf.find_address_from_file_info(wasmLineInfo);
+        wasmLineInfo.free();
+        return address;
     }
 }
