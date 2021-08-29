@@ -1,8 +1,7 @@
 import { DebugProtocol } from 'vscode-debugprotocol';
 import {
 	LoggingDebugSession,
-	InitializedEvent,
-	Thread, StackFrame, Scope, Source, Handles, Breakpoint
+	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent
 } from 'vscode-debugadapter';
 import { launch, LaunchedChrome } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
@@ -25,15 +24,20 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
     private session?: DebuggerCommand;
 
-	private client: CDP.Client | null = null;
+	private client?: CDP.Client;
 
-    private launchedBrowser: LaunchedChrome | null = null;
+    private launchedBrowser?: LaunchedChrome;
 
 	private _variableHandles = new Handles<'locals' | 'globals'>();
 
     constructor() {
         super();
     }
+
+	private onTerminated() {
+		this.sendEvent(new TerminatedEvent());
+		this.launchedBrowser = undefined;
+	} 
 
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
 		// this debugger uses zero-based lines and columns
@@ -47,16 +51,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		response.body.supportsEvaluateForHovers = true;
 
         this.sendResponse(response);
-
-		// since this debug adapter can accept configuration requests like 'setBreakpoint' at any time,
-		// we request them early by sending an 'initializeRequest' to the frontend.
-		// The frontend will end the configuration sequence by calling 'configurationDone' request.
-		this.sendEvent(new InitializedEvent());
     }
 
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
 		this.launchedBrowser = await launch({
         });
+
+		this.launchedBrowser.process.on('exit', () => this.onTerminated());
 
         // connect to endpoint
         this.client = await CDP({

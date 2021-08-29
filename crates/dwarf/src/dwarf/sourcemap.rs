@@ -124,9 +124,9 @@ pub struct DwarfUnitSourceMap {
 }
 
 fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>, sequence_base_index: usize) -> LineInfo {
-    if (row.file_index() as usize) < sequence_base_index {
-        console_log!("minus lineinfo! {}, {}", row.file_index() as usize, sequence_base_index);
-    }
+    // if (row.file_index() as usize) < sequence_base_index {
+    //     console_log!("minus lineinfo! {}, {}", row.file_index() as usize, sequence_base_index);
+    // }
 
     let filepath = paths[row.file_index() as usize - sequence_base_index].clone();
     LineInfo {
@@ -140,7 +140,7 @@ fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>, sequence_b
 }
 fn transform_file_index(file_index: usize, paths: &Vec<std::path::PathBuf>, sequence_base_index: usize) -> String {
     if file_index < sequence_base_index {
-        console_log!("minus file_index! {}, {}", file_index, sequence_base_index);
+        // console_log!("minus file_index! {}, {}", file_index, sequence_base_index);
         return String::from("??? (invalid index)");
     }
 
@@ -214,7 +214,6 @@ impl DwarfSourceMap {
         let line_vec = match self
             .file_sorted_rows
             .binary_search_by(|i| { 
-                console_log!("comparing: {}, {}", file.filepath, i.0);
                 Path::new(i.0.as_str()).cmp(&Path::new(file.filepath.as_str()))
             })
         {

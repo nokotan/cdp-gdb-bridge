@@ -1,7 +1,7 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import {
-	StoppedEvent
+	StoppedEvent, InitializedEvent,
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
 import { WasmValueVector, DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
@@ -420,7 +420,11 @@ export class DebugSessionManager implements DebuggerCommand {
             } 
         });
 
-        const bpID = Math.max.apply(null, this.breakPoints.map(x => x.id)) + 1
+        const bpID =
+            this.breakPoints.length > 0
+            ? Math.max.apply(null, this.breakPoints.map(x => x.id)) + 1
+            : 1;
+        
         this.breakPoints.push({
             id: bpID,
             rawId: bp.breakpointId,
@@ -494,11 +498,12 @@ export class DebugSessionManager implements DebuggerCommand {
             this.session.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
             console.log(`Finish Loading ${e.url}`);
+            this.debugAdapter.sendEvent(new InitializedEvent());
         }
     }
 
     private async onPaused(e: Protocol.Debugger.PausedEvent) {
-        console.log("Hit BreakPointMapping");
+        console.log("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
             const dwarfLocation = this.session.findFileFromLocation(v.location);
