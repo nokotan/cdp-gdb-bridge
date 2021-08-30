@@ -257,41 +257,64 @@ impl DwarfSubroutineMap {
         };
 
         let var = variables.remove(var_index);
-        let piece = match var.content {
-            VariableContent::Location(location) => match location {
-                AttributeValue::Exprloc(expr) => {
-                    evaluate_variable_location(subroutine.encoding, frame_base, expr)?
-                }
-                AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
-                _ => panic!(),
-            },
-            VariableContent::ConstValue(ref _bytes) => unimplemented!(),
-            VariableContent::Unknown { ref debug_info } => {
-                unimplemented!("Unknown variable content found {}", debug_info)
-            }
-        };
+        let mut calculated_address = 0;
 
-        let piece = match piece.iter().next() {
-            Some(p) => p,
-            None => {
-                println!("failed to get piece of variable");
-                return Ok(None);
-            }
-        };
+        for content in var.contents {
+
+            match content {
+                VariableContent::Location(location) => match location {
+                    AttributeValue::Exprloc(expr) => {
+                        let piece = evaluate_variable_location(subroutine.encoding, &frame_base, expr)?;
+                        let piece = match piece.iter().next() {
+                            Some(p) => p,
+                            None => {
+                                println!("failed to get piece of variable");
+                                return Ok(None);
+                            }
+                        };
+            
+                        match piece.location {
+                            gimli::Location::Address { address } => { calculated_address += address; },
+                            _ => unimplemented!(),
+                        };
+                    }
+                    AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
+                    AttributeValue::Data1(b) => {
+                        calculated_address += b as u64;
+                    },
+                    AttributeValue::Data2(b) => {
+                        calculated_address += b as u64;
+                    },
+                    AttributeValue::Data4(b) => {
+                        calculated_address += b as u64;
+                    },
+                    AttributeValue::Data8(b) => {
+                        calculated_address += b as u64;
+                    },
+                    AttributeValue::Sdata(b) => {
+                        calculated_address = (calculated_address as i64 + b) as u64;
+                    },
+                    AttributeValue::Udata(b) => {
+                        calculated_address += b;
+                    },
+                    _ => panic!(),
+                },
+                VariableContent::ConstValue(ref _bytes) => unimplemented!(),
+                VariableContent::Unknown { ref debug_info } => {
+                    unimplemented!("Unknown variable content found {}", debug_info)
+                }
+            };        
+        }
+        
 
         if let Some(offset) = var.ty_offset {
-            match piece.location {
-                gimli::Location::Address { address } => {
-                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-                    let root = tree.root()?;
-                    
-                    return match create_variable_info(root, address, &dwarf, &unit) {
-                        Ok(x) => Ok(Some(x)),
-                        Err(_) => Ok(None)
-                    };
-                }
-                _ => unimplemented!(),
-            }
+            let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+            let root = tree.root()?;
+            
+            return match create_variable_info(root, calculated_address, &dwarf, &unit) {
+                Ok(x) => Ok(Some(x)),
+                Err(_) => Ok(None)
+            };    
         } else {
             println!("no explicit type");
         }
@@ -388,10 +411,15 @@ fn create_variable_info<R: gimli::Reader>(
         }
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
             let entry = node.entry();
+            let tag = entry.tag();
             let type_name = match entry.attr_value(gimli::DW_AT_name)? {
                 Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
                 None => "<no type name>".to_string(),
             };
+            let byte_size = entry
+                .attr_value(gimli::DW_AT_byte_size)?
+                .and_then(|attr| attr.udata_value())
+                .ok_or(anyhow!("Failed to get byte_size"))?;
             let mut children = node.children();
             let mut members = vec![];
             while let Some(child) = children.next()? {
@@ -413,10 +441,10 @@ fn create_variable_info<R: gimli::Reader>(
             
             Ok(VariableInfo {
                 address: address as usize,
-                byte_size: 0,
-                name: format!("{} {{\n{}\n}}", type_name, members.join(",\n")),
+                byte_size: byte_size as usize,
+                name: format!("{} {{ {} }}", type_name, members.join(", ")),
                 encoding: gimli::DW_ATE_signed,
-                tag: gimli::DW_TAG_class_type,
+                tag,
                 memory_slice: Vec::new()
             })
         }

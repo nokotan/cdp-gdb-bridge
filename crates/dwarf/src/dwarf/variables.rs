@@ -1,6 +1,6 @@
 use gimli::{
     Unit, Reader, AttributeValue, DebuggingInformationEntry,
-    Expression
+    Expression, UnitOffset
 };
 use anyhow::{anyhow, Result};
 
@@ -11,10 +11,11 @@ use super::utils::{ clone_string_attribute };
 pub struct SymbolVariable
 {
     pub name: Option<String>,
-    pub content: VariableContent,
+    pub contents: Vec<VariableContent>,
     pub ty_offset: Option<usize>,
 }
 
+#[derive(Clone)]
 pub enum VariableContent {
     Location(gimli::AttributeValue<DwarfReader>),
     ConstValue(Vec<u8>),
@@ -53,6 +54,13 @@ fn subroutine_variables_rec(
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
                 let var = transform_variable(&dwarf, &unit, child.entry())?;
+
+                if let Some(offset) = var.ty_offset {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+                    let root = tree.root()?;
+                    subroutine_structure_variables_rec(root, dwarf, unit, code_offset, &var, variables)?;
+                }
+
                 variables.push(var);
             }
             gimli::DW_TAG_lexical_block => {
@@ -80,14 +88,57 @@ fn subroutine_variables_rec(
     Ok(())
 }
 
+fn subroutine_structure_variables_rec(
+    node: gimli::EntriesTreeNode<DwarfReader>,
+    dwarf: &gimli::Dwarf<DwarfReader>,
+    unit: &Unit<DwarfReader>,
+    code_offset: u64,
+    parent_variable: &SymbolVariable,
+    variables: &mut Vec<SymbolVariable>
+) -> Result<()> {
+    let mut children = node.children();
+
+    while let Some(child) = children.next()? {
+        match child.entry().tag() {
+            gimli::DW_TAG_member => {
+                let mut var = transform_variable(&dwarf, &unit, child.entry())?;
+
+                let mut contents = parent_variable.contents.clone();
+                contents.append(&mut var.contents);
+
+                let var = SymbolVariable {
+                    name: Some(format!(
+                        "{}.{}", 
+                        parent_variable.name.clone().unwrap_or("<unnamed>".to_string()), 
+                        var.name.unwrap_or("<unnamed>".to_string())
+                    )),
+                    contents,
+                    ty_offset: var.ty_offset
+                };
+
+                if let Some(offset) = var.ty_offset {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+                    let root = tree.root()?;
+                    subroutine_structure_variables_rec(root, dwarf, unit, code_offset, &var, variables)?;
+                }
+                
+                variables.push(var);
+            },
+            _ => continue
+        }  
+    }
+
+    Ok(())
+}
+
 pub fn evaluate_variable_location<R: gimli::Reader>(
     encoding: gimli::Encoding,
-    base: FrameBase,
+    base: &FrameBase,
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
     let mut evaluation = expr.evaluation(encoding);
     if let FrameBase::RBP(base) = base {
-        evaluation.set_initial_value(base);
+        evaluation.set_initial_value(*base);
     }
     let mut result = evaluation.evaluate()?;
     use gimli::EvaluationResult;
@@ -98,7 +149,7 @@ pub fn evaluate_variable_location<R: gimli::Reader>(
         match result {
             EvaluationResult::RequiresFrameBase => {
                 if let FrameBase::WasmFrameBase(base) = base {
-                    result = evaluation.resume_with_frame_base(base)?;
+                    result = evaluation.resume_with_frame_base(*base)?;
                 } else {
                     return Err(anyhow!("unexpected occurrence of DW_AT_frame_base"));
                 }
@@ -118,6 +169,9 @@ pub fn transform_variable(
     };
     let mut has_explicit_location = false;
     if let Some(location) = entry.attr_value(gimli::DW_AT_location)? {
+        content = VariableContent::Location(location);
+        has_explicit_location = true;
+    } else if let Some(location) = entry.attr_value(gimli::DW_AT_data_member_location)? {
         content = VariableContent::Location(location);
         has_explicit_location = true;
     }
@@ -147,9 +201,10 @@ pub fn transform_variable(
         Some(AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         _ => None,
     };
+
     Ok(SymbolVariable {
         name,
-        content,
+        contents: vec![ content ],
         ty_offset: ty,
     })
 }

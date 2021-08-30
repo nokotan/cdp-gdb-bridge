@@ -11,7 +11,19 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/dist/index.js",
+            "program": "${workspaceFolder}/dist/cli/index.js",
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ]
+        },
+        {
+            "type": "pwa-node",
+            "request": "attach",
+            "name": "Attach Program",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/cli/index.js",
             "outFiles": [
                 "${workspaceFolder}/**/*.js"
             ]
