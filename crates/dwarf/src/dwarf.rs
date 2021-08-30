@@ -1,7 +1,8 @@
 use wasm_bindgen::prelude::*;
-use object::{
-    Object, ObjectSection
+use wasmparser::{
+    Parser, Payload
 };
+use std::collections::{HashMap};
 use gimli::{
     EndianRcSlice, LittleEndian, 
     Unit, UnitOffset, Reader,
@@ -29,13 +30,23 @@ pub type DwarfReaderOffset = <DwarfReader as Reader>::Offset;
 pub type Dwarf = gimli::Dwarf<DwarfReader>;
 
 pub fn parse_dwarf(data: &[u8]) -> Result<Dwarf> {
-    let object = object::File::parse(data.borrow())?;
     let endian = gimli::LittleEndian;
+
+    let parser = Parser::new(0);
+    let mut sections = HashMap::new();
+    for payload in parser.parse_all(data) {
+        match payload? {
+            Payload::CustomSection { name, data, .. } => {
+                sections.insert(name, data);
+            }
+            _ => continue,
+        }
+    }
 
     // Load a section and return as `Cow<[u8]>`.
     let load_section = |id: gimli::SectionId| -> Result<Rc<[u8]>> {
-        match object.section_by_name(id.name()) {
-            Some(ref section) => Ok(Rc::from(section.data().unwrap_or(&[][..]))),
+        match sections.get(id.name()) {
+            Some(section) => Ok(Rc::from(*section)),
             None => Ok(Rc::from(&[][..])),
         }
     };

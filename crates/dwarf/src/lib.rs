@@ -1,8 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
-use object::{
-    Object, ObjectSection
-};
+use wasmparser::{Parser,Payload};
 use anyhow::{Result};
 use std::rc::{Rc};
 
@@ -12,6 +10,7 @@ use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf };
 use crate::dwarf::wasm_bindings::{ 
     WasmLineInfo, WasmValueVector, VariableVector
 };
+
 
 #[wasm_bindgen]
 extern "C" {
@@ -33,10 +32,11 @@ impl DwarfDebugSymbolContainer {
 
     pub fn new(data: &[u8]) -> Self {
         let data_rc: Rc<[u8]> = Rc::from(data);
+        let code_base = calculate_code_base(data).ok().unwrap_or(0);
 
         DwarfDebugSymbolContainer {
+            code_base,
             debug_info: transform_dwarf(data_rc.clone()).unwrap(),
-            code_base: calculate_code_base(data).ok().unwrap_or(0),
             data_ref: data_rc.clone()
         }
     }
@@ -79,12 +79,19 @@ impl DwarfDebugSymbolContainer {
 }
 
 fn calculate_code_base(data: &[u8]) -> Result<usize> {
+    let parser = Parser::new(0);
+    let mut code_section_offset = 0;
+
+    for payload in parser.parse_all(data) {
+        match payload? {
+            Payload::CodeSectionStart { range, .. } => {
+                code_section_offset = range.start;
+                break;
+            },
+            _ => continue
+        }
+    };
     Ok(
-        object::File::parse(data)?
-            .section_by_name("<code>")
-            .unwrap()
-            .file_range()
-            .unwrap()
-            .0 as usize
+        code_section_offset
     )
 }
