@@ -77,7 +77,7 @@ pub fn read_subprogram_header(
     unit_offset: gimli::UnitSectionOffset,
 ) -> Result<Option<Subroutine>> {
     match node.entry().tag() {
-        gimli::DW_TAG_subprogram | gimli::DW_TAG_lexical_block => (),
+        gimli::DW_TAG_subprogram => (),
         _ => return Ok(None),
     };
 

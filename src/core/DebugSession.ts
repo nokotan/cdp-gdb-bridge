@@ -111,7 +111,7 @@ class DebugSession {
 
     getVariableValue(expr: string, address: number, state: WebAssemblyDebugState) {
         for (const x of this.sources) {
-            const list = x.dwarf.get_variable_info(
+            const info = x.dwarf.get_variable_info(
                 expr,
                 state.locals,
                 state.globals,
@@ -119,8 +119,8 @@ class DebugSession {
                 address
             );
 
-            if (list) {
-                return list;
+            if (info) {
+                return info;
             }
         }
 
@@ -184,10 +184,6 @@ class NormalSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
     async setFocusedFrame() {
         console.warn('Debugger not paused!');
     }
-}
-
-interface MemoryEvaluator {
-    evaluate(address: number, size: number): Promise<number[]>;
 }
 
 class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand {
