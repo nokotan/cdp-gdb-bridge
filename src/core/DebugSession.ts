@@ -296,33 +296,42 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
     }
 
     private async createWasmValueStore(frame: Protocol.Debugger.CallFrame) {
-        const wasmStackObject = (await this.runtime.getProperties(
-            { objectId: frame.scopeChain[0].object.objectId! }
-        )).result;
+        const getStackStore = async () => {
+            const wasmStackObject = (await this.runtime.getProperties({ 
+                objectId: frame.scopeChain[0].object.objectId!,
+            })).result;
+    
+            const wasmStacks = (await this.runtime.getProperties({
+                objectId: wasmStackObject[0].value!.objectId!
+            })).result;
+    
+            return await createWasmValueStore(this.runtime, wasmStacks);
+        }
 
-        const wasmStacks = (await this.runtime.getProperties({
-            objectId: wasmStackObject[0].value!.objectId!
-        })).result;
+        const getLocalsStore = async () => {
+            const wasmLocalObject = (await this.runtime.getProperties(
+                { objectId: frame.scopeChain[1].object.objectId! }
+            )).result;
+    
+            return await createWasmValueStore(this.runtime, wasmLocalObject);
+        }
 
-        const StacksStore = await createWasmValueStore(this.runtime, wasmStacks);
+        const getGlobalsStore = async () => {
+            const wasmModuleObject = (await this.runtime.getProperties(
+                { objectId: frame.scopeChain[2].object.objectId! }
+            )).result;
+    
+            const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
+    
+            const wasmGlobals = (await this.runtime.getProperties({
+                objectId: wasmGlobalsObject.value!.objectId!
+            })).result;
+    
+            return await createWasmValueStore(this.runtime, wasmGlobals);
+        }
 
-        const wasmLocalObject = (await this.runtime.getProperties(
-            { objectId: frame.scopeChain[1].object.objectId! }
-        )).result;
-
-        const LocalsStore = await createWasmValueStore(this.runtime, wasmLocalObject);
-
-        const wasmModuleObject = (await this.runtime.getProperties(
-            { objectId: frame.scopeChain[2].object.objectId! }
-        )).result;
-
-        const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
-
-        const wasmGlobals = (await this.runtime.getProperties({
-            objectId: wasmGlobalsObject.value!.objectId!
-        })).result;
-
-        const GlobalsStore = await createWasmValueStore(this.runtime, wasmGlobals);
+        const [ StacksStore, LocalsStore, GlobalsStore] 
+            = await Promise.all([ getStackStore(), getLocalsStore(), getGlobalsStore() ]);
 
         return {
             stacks: StacksStore,

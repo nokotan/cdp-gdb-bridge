@@ -1,3 +1,4 @@
+use wasm_bindgen::prelude::*;
 use gimli::{
     UnitOffset, Unit,
     AttributeValue, UnitSectionOffset
@@ -9,6 +10,20 @@ use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_f
 use super::variables::{ FrameBase, VariableContent, subroutine_variables, evaluate_variable_location };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
+
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+macro_rules! console_log {
+    // Note that this is using the `log` function imported above during
+    // `bare_bones`
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
 
 #[derive(Clone)]
 pub enum WasmLoc {
@@ -316,7 +331,7 @@ impl DwarfSubroutineMap {
                 Err(_) => Ok(None)
             };    
         } else {
-            println!("no explicit type");
+            console_log!("no explicit type");
         }
         Ok(None)
     }
@@ -382,7 +397,7 @@ fn create_variable_info<R: gimli::Reader>(
     unit: &Unit<R>,
 ) -> Result<VariableInfo> {
     match node.entry().tag() {
-        gimli::DW_TAG_base_type => {
+        gimli::DW_TAG_base_type | gimli::DW_TAG_pointer_type => {
             let entry = node.entry();
             let name = match entry.attr_value(gimli::DW_AT_name)? {
                 Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
@@ -391,14 +406,14 @@ fn create_variable_info<R: gimli::Reader>(
             let byte_size = entry
                 .attr_value(gimli::DW_AT_byte_size)?
                 .and_then(|attr| attr.udata_value())
-                .ok_or(anyhow!("Failed to get byte_size"))?;
+                .unwrap_or(unit.header.address_size() as u64);
             let encoding = entry
                 .attr_value(gimli::DW_AT_encoding)?
                 .and_then(|attr| match attr {
                     gimli::AttributeValue::Encoding(encoding) => Some(encoding),
                     _ => None,
                 })
-                .ok_or(anyhow!("Failed to get type encoding"))?;
+                .unwrap_or(gimli::constants::DW_ATE_unsigned);
 
             Ok(VariableInfo {
                 address: address as usize,

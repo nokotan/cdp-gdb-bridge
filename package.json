@@ -5,7 +5,7 @@
   "main": "dist/vscode/extension.js",
   "scripts": {
     "build": "tsc",
-    "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs --dev",
+    "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
     "run": "node dist/cli/index.js",
     "prepublish": "npm run build-crate && npm run build"
   },

@@ -13,8 +13,8 @@ export async function createWasmValueStore(runtime: ProtocolApi.RuntimeApi, data
                 objectId: x.value!.objectId!
             });
 
-            const type = result.result[0].value!.value!;
-            const value = result.result[1].value!.value!;
+            const type = result.result[0].value!.value;
+            const value = result.result[1].value?.value || result.result[1].value!.unserializableValue?.slice(0, -1);
             
             switch (type) {
                 case 'i32':

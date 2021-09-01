@@ -6,7 +6,8 @@ use std::collections::{HashMap};
 use gimli::{
     EndianRcSlice, LittleEndian, 
     Unit, UnitOffset, Reader,
-    UnitSectionOffset, UnitHeader
+    UnitSectionOffset, UnitHeader,
+    AttributeValue
 };
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
@@ -127,10 +128,23 @@ fn unit_type_name<R: gimli::Reader>(
     };
     let mut tree = unit.entries_tree(Some(UnitOffset::<R::Offset>(type_offset)))?;
     let root = tree.root()?;
-    if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
-        clone_string_attribute(dwarf, unit, attr)
-    } else {
-        Err(anyhow!(format!("failed to seek at {:?}", type_offset)))
+
+    match root.entry().tag() {
+        gimli::DW_TAG_base_type | gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type
+        | gimli::DW_TAG_pointer_type => {
+            if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
+                clone_string_attribute(dwarf, unit, attr)
+            } else {
+                Ok(String::from("<no-type-name>"))
+            }
+        },
+        _ => {
+            if let Some(AttributeValue::UnitRef(ref offset)) = root.entry().attr_value(gimli::DW_AT_type)? {
+                unit_type_name(dwarf, unit, Some(offset.0))
+            } else {
+                Err(anyhow!(format!("failed to seek at {:?}", type_offset)))
+            }
+        }
     }
 }
 

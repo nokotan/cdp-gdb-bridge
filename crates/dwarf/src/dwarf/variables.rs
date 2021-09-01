@@ -54,13 +54,7 @@ fn subroutine_variables_rec(
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
                 let var = transform_variable(&dwarf, &unit, child.entry())?;
-
-                if let Some(offset) = var.ty_offset {
-                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-                    let root = tree.root()?;
-                    subroutine_structure_variables_rec(root, dwarf, unit, code_offset, &var, variables)?;
-                }
-
+                subroutine_structure_variables_rec(child, dwarf, unit, &var, variables)?;
                 variables.push(var);
             }
             gimli::DW_TAG_lexical_block => {
@@ -92,40 +86,54 @@ fn subroutine_structure_variables_rec(
     node: gimli::EntriesTreeNode<DwarfReader>,
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
-    code_offset: u64,
     parent_variable: &SymbolVariable,
     variables: &mut Vec<SymbolVariable>
 ) -> Result<()> {
-    let mut children = node.children();
 
-    while let Some(child) = children.next()? {
-        match child.entry().tag() {
-            gimli::DW_TAG_member => {
-                let mut var = transform_variable(&dwarf, &unit, child.entry())?;
+    match node.entry().tag() {
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+            let mut children = node.children();
 
-                let mut contents = parent_variable.contents.clone();
-                contents.append(&mut var.contents);
+            while let Some(child) = children.next()? {
+                match child.entry().tag() {
+                    gimli::DW_TAG_member => {
+                        let mut var = transform_variable(&dwarf, &unit, child.entry())?;
 
-                let var = SymbolVariable {
-                    name: Some(format!(
-                        "{}.{}", 
-                        parent_variable.name.clone().unwrap_or("<unnamed>".to_string()), 
-                        var.name.unwrap_or("<unnamed>".to_string())
-                    )),
-                    contents,
-                    ty_offset: var.ty_offset
-                };
+                        let mut contents = parent_variable.contents.clone();
+                        contents.append(&mut var.contents);
 
-                if let Some(offset) = var.ty_offset {
-                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-                    let root = tree.root()?;
-                    subroutine_structure_variables_rec(root, dwarf, unit, code_offset, &var, variables)?;
-                }
-                
-                variables.push(var);
-            },
-            _ => continue
-        }  
+                        let var = SymbolVariable {
+                            name: Some(format!(
+                                "{}.{}", 
+                                parent_variable.name.clone().unwrap_or("<unnamed>".to_string()), 
+                                var.name.unwrap_or("<unnamed>".to_string())
+                            )),
+                            contents,
+                            ty_offset: var.ty_offset
+                        };
+
+                        if let Some(offset) = var.ty_offset {
+                            let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+                            let root = tree.root()?;
+                            subroutine_structure_variables_rec(root, dwarf, unit, &var, variables)?;
+                        }
+                        
+                        variables.push(var);
+                    },
+                    _ => continue
+                }  
+            }
+        },
+        gimli::DW_TAG_pointer_type => {
+
+        },
+        _ => {
+            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {
+                let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
+                let root = tree.root()?;
+                subroutine_structure_variables_rec(root, dwarf, unit, parent_variable, variables)?;
+            } 
+        }
     }
 
     Ok(())

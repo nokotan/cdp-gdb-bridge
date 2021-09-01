@@ -65,7 +65,7 @@ impl DwarfDebugSymbolContainer {
     pub fn variable_name_list(&self, instruction_offset: usize) -> Option<VariableVector> {
         match self.debug_info.subroutine.variable_name_list(instruction_offset - self.code_base) {
             Ok(x) => Some(VariableVector::from_vec(x)),
-            Err(_) => None
+            Err(e) => { console_log!("{}", e); None }
         }
     }
 
