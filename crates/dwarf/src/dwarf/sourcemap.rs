@@ -23,6 +23,7 @@ pub struct LineInfo {
     pub line: Option<u64>,
     pub column: ColumnType,
 }
+
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
 #[wasm_bindgen]
@@ -38,6 +39,7 @@ macro_rules! console_log {
     // `bare_bones`
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
+
 pub fn transform_debug_line(
     unit: &Unit<DwarfReader, DwarfReaderOffset>,
     root: &DebuggingInformationEntry<DwarfReader>,

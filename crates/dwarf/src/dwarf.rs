@@ -23,8 +23,25 @@ mod utils;
 
 use sourcemap::{ DwarfSourceMap, transform_debug_line };
 use subroutine::{ DwarfSubroutineMap, transform_subprogram };
+use variables::{ DwarfGlobalVariables, transform_global_variable };
 use format::{ format_object };
 use utils::{ clone_string_attribute };
+
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::*;
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+macro_rules! console_log {
+    // Note that this is using the `log` function imported above during
+    // `bare_bones`
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
 
 pub type DwarfReader = EndianRcSlice<LittleEndian>;
 pub type DwarfReaderOffset = <DwarfReader as Reader>::Offset;
@@ -67,6 +84,7 @@ pub fn parse_dwarf(data: &[u8]) -> Result<Dwarf> {
 pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
     pub subroutine: DwarfSubroutineMap,
+    pub global_variables: DwarfGlobalVariables
 }
 
 pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
@@ -74,7 +92,9 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
-
+    let mut variables = Vec::new();
+    let mut entry_num = 0;
+    
     while let Some(header) = headers.next()? {
         let header_offset = header.offset();
         let unit = dwarf.unit(header)?;
@@ -83,6 +103,7 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
             Some((_, entry)) => entry,
             None => continue,
         };
+        entry_num += 1;
         sourcemaps.push(transform_debug_line(
             &unit,
             root,
@@ -90,13 +111,21 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
             &dwarf.debug_line,
         )?);
         subroutines.append(&mut transform_subprogram(&dwarf, &unit, header_offset)?);
+        variables.append(&mut transform_global_variable(&dwarf, &unit, header_offset)?);
     }
+
+    console_log!("found {} entries", entry_num);
+
     Ok(DwarfDebugInfo {
         sourcemap: DwarfSourceMap::new(sourcemaps),
         subroutine: DwarfSubroutineMap {
             subroutines,
             buffer: buffer.clone(),
         },
+        global_variables: DwarfGlobalVariables {
+            variables,
+            buffer: buffer.clone(),
+        }
     })
 }
 

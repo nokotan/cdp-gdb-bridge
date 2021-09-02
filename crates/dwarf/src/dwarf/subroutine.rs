@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
 use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name };
-use super::variables::{ FrameBase, VariableContent, subroutine_variables, evaluate_variable_location };
+use super::variables::{ FrameBase, VariableContent, VariableName, subroutine_variables, evaluate_variable_location, create_variable_info };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
 
@@ -163,11 +163,6 @@ fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result
     Ok(loc)
 }
 
-pub struct Variable {
-    pub name: String,
-    pub type_name: String,
-}
-
 pub struct DwarfSubroutineMap {
     pub subroutines: Vec<Subroutine>,
     pub buffer: Rc<[u8]>,
@@ -175,7 +170,21 @@ pub struct DwarfSubroutineMap {
 
 impl DwarfSubroutineMap {
 
-    pub fn variable_name_list(&self, code_offset: usize) -> Result<Vec<Variable>> {
+    pub fn find_subroutine(&self, code_offset: usize) -> Result<&Subroutine> {
+        let offset = code_offset as u64;
+
+        match self
+            .subroutines
+            .iter()
+            .filter(|s| s.pc.contains(&offset))
+            .next()
+        {
+            Some(s) => Ok(s),
+            None => return Err(anyhow!("failed to determine subroutine")),
+        }
+    }
+
+    pub fn variable_name_list(&self, code_offset: usize) -> Result<Vec<VariableName>> {
         let offset = code_offset as u64;
         let subroutine = match self
             .subroutines
@@ -200,7 +209,7 @@ impl DwarfSubroutineMap {
         Ok(variables
             .iter()
             .map(|var| {
-                let mut v = Variable {
+                let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
                 };
@@ -387,82 +396,5 @@ impl DwarfSubroutineMap {
             frame_base,
             opts
         )
-    }
-}
-
-fn create_variable_info<R: gimli::Reader>(
-    node: gimli::EntriesTreeNode<R>,
-    address: u64,
-    dwarf: &gimli::Dwarf<R>,
-    unit: &Unit<R>,
-) -> Result<VariableInfo> {
-    match node.entry().tag() {
-        gimli::DW_TAG_base_type | gimli::DW_TAG_pointer_type => {
-            let entry = node.entry();
-            let name = match entry.attr_value(gimli::DW_AT_name)? {
-                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                None => "<no type name>".to_string(),
-            };
-            let byte_size = entry
-                .attr_value(gimli::DW_AT_byte_size)?
-                .and_then(|attr| attr.udata_value())
-                .unwrap_or(unit.header.address_size() as u64);
-            let encoding = entry
-                .attr_value(gimli::DW_AT_encoding)?
-                .and_then(|attr| match attr {
-                    gimli::AttributeValue::Encoding(encoding) => Some(encoding),
-                    _ => None,
-                })
-                .unwrap_or(gimli::constants::DW_ATE_unsigned);
-
-            Ok(VariableInfo {
-                address: address as usize,
-                byte_size: byte_size as usize,
-                name,
-                encoding,
-                tag: gimli::DW_TAG_base_type,
-                memory_slice: Vec::new()
-            })
-        }
-        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
-            let entry = node.entry();
-            let tag = entry.tag();
-            let type_name = match entry.attr_value(gimli::DW_AT_name)? {
-                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                None => "<no type name>".to_string(),
-            };
-            let byte_size = entry
-                .attr_value(gimli::DW_AT_byte_size)?
-                .and_then(|attr| attr.udata_value())
-                .ok_or(anyhow!("Failed to get byte_size"))?;
-            let mut children = node.children();
-            let mut members = vec![];
-            while let Some(child) = children.next()? {
-                match child.entry().tag() {
-                    gimli::DW_TAG_member => {
-                        let name = match child.entry().attr_value(gimli::DW_AT_name)? {
-                            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                            None => "<no member name>".to_string(),
-                        };
-                        // let ty = match entry.attr_value(gimli::DW_AT_type)? {
-                        //     Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
-                        //     _ => return Err(anyhow!("Failed to get type offset")),
-                        // };
-                        members.push(name);
-                    }
-                    _ => continue,
-                }
-            }
-            
-            Ok(VariableInfo {
-                address: address as usize,
-                byte_size: byte_size as usize,
-                name: format!("{} {{ {} }}", type_name, members.join(", ")),
-                encoding: gimli::DW_ATE_signed,
-                tag,
-                memory_slice: Vec::new()
-            })
-        }
-        _ => Err(anyhow!("unsupported DIE type")),
     }
 }

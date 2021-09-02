@@ -17,7 +17,8 @@ export class CommandReader {
             [ 'b', (location: string) => this.setBreakPoint(location) ],
             [ 'd', (id: number) => this.removeBreakPoint(id) ],
             [ 'l', () => this.showLine() ],
-            [ 'i', () => this.listVariable() ],
+            [ 'il', () => this.listVariable() ],
+            [ 'ig', () => this.listGlobalVariable() ],
             [ 'p', (expr: string) => this.dumpVariable(expr) ],
         ]);
     }
@@ -77,6 +78,14 @@ export class CommandReader {
 
     async listVariable() {
         const variables = await this.session.listVariable();
+
+        variables.forEach(x => {
+            console.log(`${x.name}: ${x.type}`)
+        })
+    }
+
+    async listGlobalVariable() {
+        const variables = await this.session.listGlobalVariable();
 
         variables.forEach(x => {
             console.log(`${x.name}: ${x.type}`)

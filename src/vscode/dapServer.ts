@@ -200,6 +200,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		response.body = {
 			scopes: [
 				new Scope("Locals", this._variableHandles.create('locals'), true),
+				new Scope("Globals", this._variableHandles.create('globals'), true),
 			]
 		};
 		this.sendResponse(response);
@@ -213,7 +214,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		
 		if (v === 'locals') {
 			vs = await this.session!.listVariable();
-		}  
+		} else if (v === 'globals') {
+			vs = await this.session!.listGlobalVariable();
+		}
 
 		const variablesPromise = vs.map(async x => {
 			const value = await this.session!.dumpVariable(x.name) || '???';

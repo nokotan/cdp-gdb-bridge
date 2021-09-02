@@ -109,6 +109,16 @@ class DebugSession {
         return undefined;
     }
 
+    getGlobalVariablelist(inst: number) {
+        let list = [];
+
+        for (const x of this.sources) {
+            list.push(x.dwarf.global_variable_name_list(inst));
+        }
+
+        return list;
+    }
+
     getVariableValue(expr: string, address: number, state: WebAssemblyDebugState) {
         for (const x of this.sources) {
             const info = x.dwarf.get_variable_info(
@@ -133,6 +143,7 @@ interface DebuggerDumpCommand {
     getStackFrames(): Promise<IRuntimeStackFrame[]>;
     setFocusedFrame(index: number): Promise<void>;
     listVariable(): Promise<Variable[]>;
+    listGlobalVariable(): Promise<Variable[]>;
     dumpVariable(expr: string): Promise<string | undefined>;
 }
 
@@ -174,6 +185,10 @@ class NormalSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         console.warn('Debugger not paused!');
     }
     async listVariable() {
+        console.warn('Debugger not paused!');
+        return [];
+    }
+    async listGlobalVariable() {
         console.warn('Debugger not paused!');
         return [];
     }
@@ -265,6 +280,36 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         return list;
     }
 
+    async listGlobalVariable() {
+        const frame = this.stackFrames[this.selectedFrameIndex];
+        const varlists = this.debugSession.getGlobalVariablelist(frame.stack.instruction!);
+
+        if (varlists.length <= 0) {
+            console.log('not available.');
+            return [];
+        }
+
+        let list: Variable[] = [];
+
+        for (const varlist of varlists) {
+            if (!varlist) {
+                continue
+            }
+            
+            for (let i = 0; i < varlist.size(); i++)
+            {
+                const name = varlist.at_name(i);
+                const type = varlist.at_type_name(i);
+
+                list.push({
+                    name, type
+                })
+            }
+        }
+
+        return list;
+    }
+
     async dumpVariable(expr: string) {
         const frame = this.stackFrames[this.selectedFrameIndex];
 
@@ -299,32 +344,37 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         const getStackStore = async () => {
             const wasmStackObject = (await this.runtime.getProperties({ 
                 objectId: frame.scopeChain[0].object.objectId!,
+                ownProperties: true
             })).result;
     
             const wasmStacks = (await this.runtime.getProperties({
-                objectId: wasmStackObject[0].value!.objectId!
+                objectId: wasmStackObject[0].value!.objectId!,
+                ownProperties: true
             })).result;
     
             return await createWasmValueStore(this.runtime, wasmStacks);
         }
 
         const getLocalsStore = async () => {
-            const wasmLocalObject = (await this.runtime.getProperties(
-                { objectId: frame.scopeChain[1].object.objectId! }
-            )).result;
+            const wasmLocalObject = (await this.runtime.getProperties({ 
+                objectId: frame.scopeChain[1].object.objectId!,
+                ownProperties: true
+            })).result;
     
             return await createWasmValueStore(this.runtime, wasmLocalObject);
         }
 
         const getGlobalsStore = async () => {
-            const wasmModuleObject = (await this.runtime.getProperties(
-                { objectId: frame.scopeChain[2].object.objectId! }
-            )).result;
+            const wasmModuleObject = (await this.runtime.getProperties({ 
+                objectId: frame.scopeChain[2].object.objectId!,
+                ownProperties: true
+            })).result;
     
             const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
     
             const wasmGlobals = (await this.runtime.getProperties({
-                objectId: wasmGlobalsObject.value!.objectId!
+                objectId: wasmGlobalsObject.value!.objectId!,
+                ownProperties: true
             })).result;
     
             return await createWasmValueStore(this.runtime, wasmGlobals);
@@ -399,6 +449,10 @@ export class DebugSessionManager implements DebuggerCommand {
 
     async listVariable() {
         return await this.sessionState.listVariable();
+    }
+
+    async listGlobalVariable() {
+        return await this.sessionState.listGlobalVariable();
     }
 
     async dumpVariable(expr: string) {

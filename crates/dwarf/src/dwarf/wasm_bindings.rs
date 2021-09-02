@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
 use super::sourcemap::{ LineInfo, ColumnType };
-use super::subroutine::{ Variable };
+use super::variables::{ VariableName };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Value {
@@ -112,13 +112,13 @@ impl WasmLineInfo {
 
 #[wasm_bindgen]
 pub struct VariableVector {
-    data: Vec<Variable>
+    data: Vec<VariableName>
 }
 
 #[wasm_bindgen]
 impl VariableVector {
     
-    pub(crate) fn from_vec(data: Vec<Variable>) -> Self {
+    pub(crate) fn from_vec(data: Vec<VariableName>) -> Self {
         Self {
             data
         }

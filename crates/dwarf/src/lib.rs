@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
-use wasmparser::{Parser,Payload};
+use wasmparser::{Parser,Payload,DataKind};
 use anyhow::{Result};
 use std::rc::{Rc};
 
@@ -30,6 +30,7 @@ macro_rules! console_log {
 pub struct DwarfDebugSymbolContainer {
     debug_info: DwarfDebugInfo,
     code_base: usize,
+    data_base: usize,
     data_ref: Rc<[u8]>
 }
 
@@ -38,10 +39,11 @@ impl DwarfDebugSymbolContainer {
 
     pub fn new(data: &[u8]) -> Self {
         let data_rc: Rc<[u8]> = Rc::from(data);
-        let code_base = calculate_code_base(data).ok().unwrap_or(0);
+        let base = calculate_code_base(data).ok().unwrap_or((0, 0));
 
         DwarfDebugSymbolContainer {
-            code_base,
+            code_base: base.0,
+            data_base: base.1,
             debug_info: transform_dwarf(data_rc.clone()).unwrap(),
             data_ref: data_rc.clone()
         }
@@ -69,6 +71,20 @@ impl DwarfDebugSymbolContainer {
         }
     }
 
+    pub fn global_variable_name_list(&self, instruction: usize) -> Option<VariableVector> {
+
+        let subroutine = match self.debug_info.subroutine.find_subroutine(instruction - self.code_base) 
+        {
+            Ok(x) => x,
+            Err(e) => { console_log!("{}", e); return None; }
+        };
+
+        match self.debug_info.global_variables.variable_name_list(subroutine.unit_offset) {
+            Ok(x) => Some(VariableVector::from_vec(x)),
+            Err(e) => { console_log!("{}", e); None }
+        }
+    }
+
     pub fn get_variable_info(
         &self, 
         opts: String,
@@ -78,26 +94,53 @@ impl DwarfDebugSymbolContainer {
         instruction_offset: usize) -> Option<VariableInfo> {
 
         match self.debug_info.subroutine.get_variable_info(&opts, locals, globals, stacks, instruction_offset - self.code_base) {
+            Ok(Some(x)) => return Some(x),
+            Ok(None) => {},
+            Err(e) => { console_log!("{}", e)}
+        };
+
+        let subroutine = match self.debug_info.subroutine.find_subroutine(instruction_offset - self.code_base) 
+        {
+            Ok(x) => x,
+            Err(e) => { console_log!("{}", e); return None; }
+        };
+
+        match self.debug_info.global_variables.get_variable_info(&opts, subroutine.unit_offset, self.data_base, globals) {
             Ok(x) => x,
             Err(e) => { console_log!("{}", e); None }
         }
     }
 }
 
-fn calculate_code_base(data: &[u8]) -> Result<usize> {
+fn calculate_code_base(data: &[u8]) -> Result<(usize, usize)> {
     let parser = Parser::new(0);
     let mut code_section_offset = 0;
+    let mut data_section_offset = 0;
 
     for payload in parser.parse_all(data) {
         match payload? {
             Payload::CodeSectionStart { range, .. } => {
                 code_section_offset = range.start;
-                break;
             },
+            // Payload::DataSection(ref mut reader) => {
+            //     let data = reader.read().expect("data");
+               
+            //     if let DataKind::Active { init_expr, .. } = data.kind {
+            //         let mut init_expr_reader = init_expr.get_binary_reader();
+            //         let op = init_expr_reader.read_operator().expect("op");
+                    
+            //         match op {
+            //             wasmparser::Operator::I32Const { value } => {
+            //                 data_section_offset = value as usize
+            //             },
+            //             _ => {}
+            //         }
+            //     }
+            // },
             _ => continue
         }
     };
     Ok(
-        code_section_offset
+        (code_section_offset, data_section_offset)
     )
 }
