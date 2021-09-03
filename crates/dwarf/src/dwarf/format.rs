@@ -17,11 +17,11 @@ pub fn format_object(
             match encoding {
                 gimli::DW_ATE_signed => {
                     let value = BigInt::from_signed_bytes_le(&bytes);
-                    Ok(format!("{}({})", name, value))
+                    Ok(format!("({}){}", name, value))
                 }
                 gimli::DW_ATE_unsigned => {
                     let value = BigUint::from_bytes_le(&bytes);
-                    Ok(format!("{}({})", name, value))
+                    Ok(format!("({}){}", name, value))
                 }
                 _ => unimplemented!(),
             }

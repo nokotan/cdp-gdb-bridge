@@ -5,7 +5,7 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset };
+use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name };
 use super::subroutine::{ Subroutine };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
@@ -274,6 +274,15 @@ pub struct DwarfGlobalVariables {
 
 impl DwarfGlobalVariables {
     pub fn variable_name_list(&self, unit_offset: UnitSectionOffset) -> Result<Vec<VariableName>> {
+        let dwarf = parse_dwarf(&self.buffer)?;
+        let header = match header_from_offset(&dwarf, unit_offset)? {
+            Some(header) => header,
+            None => {
+                return Ok(vec![]);
+            }
+        };
+
+        let unit = dwarf.unit(header)?;
         let list = self.variables.iter()
             .filter(|var| {
                 var.unit_offset.is_some() && unit_offset == var.unit_offset.unwrap()
@@ -285,6 +294,9 @@ impl DwarfGlobalVariables {
                 };
                 if let Some(name) = var.name.clone() {
                     v.name = name;
+                }
+                if let Ok(ty_name) = unit_type_name(&dwarf, &unit, var.ty_offset) {
+                    v.type_name = ty_name;
                 }
                 v
             }).collect();

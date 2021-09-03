@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
-use wasmparser::{Parser,Payload,DataKind};
+use wasmparser::{Parser,Payload};
 use anyhow::{Result};
 use std::rc::{Rc};
 
