@@ -15,7 +15,7 @@
     "prepublish": "npm run build-crate && npm run build",
     "run": "node dist/cli/index.js",
     "vscode:pack": "vsce package -o dist/",
-    "vscode:prepublish": "webpack --mode=production"
+    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServer"
   },
   "bin": {
     "cdp-gdb-bridge": "dist/cli/index.js"
