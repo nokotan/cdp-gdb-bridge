@@ -467,8 +467,8 @@ export class DebugSessionManager implements DebuggerCommand {
             return { verified: false };
         }
 
-        const debugfilename = fileInfo[0];
-        const debugline = Number(fileInfo[1]);
+        const debugline = Number(fileInfo.pop());
+        const debugfilename = fileInfo.join(":");
 
         const wasmLocation = this.session.findAddressFromFileLocation(debugfilename, debugline);
         const bp = await this.debugger.setBreakpoint({ 

@@ -13,6 +13,7 @@ js-sys = "*"
 gimli = "0.25.0"
 anyhow = "1.0.26"
 num-bigint = "0.4"
+regex = "*"
 wasmparser = "^0.80.1"
 
 [lib]

@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path};
 
 use super::{ DwarfReader, DwarfReaderOffset };
-use super::utils::{ clone_string_attribute };
+use super::utils::{ clone_string_attribute, convert_from_windows_stype_path };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ColumnType {
@@ -76,11 +76,16 @@ pub fn transform_debug_line(
     let mut file_sorted_rows = BTreeMap::new();
     for (file_index, file_entry) in header.file_names().iter().enumerate() {
         let dir = dirs[file_entry.directory_index() as usize].clone();
+        let dir = convert_from_windows_stype_path(&dir);
+
         let dir_path = Path::new(&dir);
-        let mut path = dir_path.join(clone_string_attribute(dwarf, unit, file_entry.path_name())?);
+        let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
+        let mut path = dir_path.join(convert_from_windows_stype_path(&path));
+
         if !path.is_absolute() {
             if let Some(comp_dir) = unit.comp_dir.clone() {
                 let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
+                let comp_dir =convert_from_windows_stype_path(&comp_dir);
                 path = Path::new(&comp_dir).join(path);
             }
         }
@@ -213,10 +218,14 @@ impl DwarfSourceMap {
     }
 
     pub fn find_address(&self, file: &LineInfo) -> Option<usize> {
+        let escaped_filename = convert_from_windows_stype_path(&file.filepath);
+        console_log!("{}", escaped_filename);
+        let filename_buf = Path::new(escaped_filename.as_str());
         let line_vec = match self
             .file_sorted_rows
             .binary_search_by(|i| { 
-                Path::new(i.0.as_str()).cmp(&Path::new(file.filepath.as_str()))
+                console_log!("{}", i.0);
+                Path::new(i.0.as_str()).cmp(&filename_buf)
             })
         {
             Ok(i) => &self.file_sorted_rows[i].1,

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use gimli;
+use regex::{Regex,Captures};
 
 pub(crate) fn clone_string_attribute<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
@@ -11,4 +12,17 @@ pub(crate) fn clone_string_attribute<R: gimli::Reader>(
         .to_string()?
         .as_ref()
         .to_string())
+}
+
+pub(crate) fn convert_from_windows_stype_path(
+    path: &String
+) -> String {
+    let backslash_escaped = path.replace("\\", "/");
+    let regex = Regex::new("^([A-Za-z]):/");
+    regex.unwrap().replace_all(
+        &backslash_escaped, 
+        |captured: &Captures| {
+            format!("/{}/", captured[1].to_lowercase())
+        }
+    ).into_owned()
 }
