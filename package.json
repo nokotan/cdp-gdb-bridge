@@ -55,7 +55,7 @@
         "languages": [
           "webassembly"
         ],
-        "label": "Mock Debug",
+        "label": "WebAssembly Debug",
         "program": "./packed/dapServer.js",
         "runtime": "node",
         "configurationAttributes": {
@@ -66,8 +66,8 @@
             "properties": {
               "url": {
                 "type": "string",
-                "description": "Absolute path to a text file.",
-                "default": "${workspaceFolder}/${command:AskForProgramName}"
+                "description": "path to inspected webpage.",
+                "default": "http://localhost:8080/"
               }
             }
           }
@@ -76,18 +76,18 @@
           {
             "type": "wasm",
             "request": "launch",
-            "name": "Ask for file name",
+            "name": "Ask for url",
             "url": "${workspaceFolder}/${command:AskForProgramName}"
           }
         ],
         "configurationSnippets": [
           {
-            "label": "Mock Debug: Launch",
+            "label": "WebAssembly Debug: Launch",
             "description": "A new configuration for 'debugging' a user selected markdown file.",
             "body": {
-              "type": "mock",
+              "type": "wasm",
               "request": "launch",
-              "name": "Ask for file name",
+              "name": "Ask for url",
               "url": "^\"\\${workspaceFolder}/\\${command:AskForProgramName}\""
             }
           }

@@ -1,8 +1,10 @@
 # cdp-gdb-bridge
 
-WebAssembly on Chrome cli debugger
+WebAssembly on Chrome cli debugger & vscode extension
 
-## Usage
+## Command Line Interface
+
+### Usage
 
 ```sh
 # Launch Chrome & Debugging Proxy
@@ -17,10 +19,11 @@ Start Loading http://localhost:8080/index.wasm...
 > b Main.cpp:10
 ```
 
-## Supported Commands
+### Supported Commands
 
 | Syntax | |
 |:--:|:--:|
+| r (url) | Jump to url |
 | b (FileName):(LineNumber) | Set Breakpoint |
 | d (breakpoint ID | Delete Breakpoint |
 | n | Step-Over |
@@ -28,9 +31,22 @@ Start Loading http://localhost:8080/index.wasm...
 | u | Step-Out |
 | c | Continue |
 | l | Show Source File around Current Frame |
-| i | Show Local Variables Name |
-| p (VariableName) | Evaluate Local Variable |
+| il | Show Local Variables Name |
+| ig | Show Global Variables Name |
+| p (VariableName) | Evaluate Variable |
 
-## Known Issues
+## VSCode Extension
 
-- Some WebAssembly Files with **name** Sections cannot be parsed.
+### Support Status
+
+|| Windows | macOS | Linux |
+| :--: | :--: | :--: | :--: |
+| Chrome | ❌ | ✅ | ❌ |
+| FireFox | ❌ | ❌ | ❌ |
+| Safari | - | ❌ | - |
+| Edge | ❌ | - | - |
+
+### Features
+
+- BreakPoints
+- Variable Dump (except for pointer)
