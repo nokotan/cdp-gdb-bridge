@@ -239,7 +239,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments) {
 
-		const vs: Variable[] = await this.session!.listVariable();
+		const locals: Variable[] = await this.session!.listVariable();
+		const globals: Variable[] = await this.session!.listGlobalVariable();
+		const vs = locals.concat(globals);
 
 		const variablesPromise = vs
 			.filter(x => x.name == args.expression)
