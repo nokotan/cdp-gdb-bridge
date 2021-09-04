@@ -1,0 +1,7 @@
+.vscode
+crates
+node_modules
+packed/*.map
+src
+dist
+webpack.config.js
