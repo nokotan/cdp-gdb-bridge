@@ -104,7 +104,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	protected async breakpointLocationsRequest(response: DebugProtocol.BreakpointLocationsResponse, args: DebugProtocol.BreakpointLocationsArguments, request?: DebugProtocol.Request) {
 
 		if (args.source.path) {
-			const bps = await this.session!.getBreakPointsList(`${args.source}:${args.line}`);
+			const bps = await this.session!.getBreakPointsList(`${args.source.path}:${args.line}`);
 			response.body = {
 				breakpoints: bps.map(col => {
 					return {

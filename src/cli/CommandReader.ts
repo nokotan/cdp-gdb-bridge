@@ -42,7 +42,7 @@ export class CommandReader {
                         return;
                     }
 
-                    this.commandList.get(commandArgs[0])?.apply(this.session, commandArgs.slice(1));
+                    this.commandList.get(commandArgs[0])?.apply(this.session, [ commandArgs.slice(1).join(" ") ]);
                 })
             }
         )
