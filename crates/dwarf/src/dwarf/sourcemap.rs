@@ -6,10 +6,10 @@ use anyhow::{anyhow, Result};
 
 use std::cell::{RefCell};
 use std::collections::{BTreeMap, HashMap};
-use std::path::{Path};
+use std::path::{Path,PathBuf};
 
 use super::{ DwarfReader, DwarfReaderOffset };
-use super::utils::{ clone_string_attribute, convert_from_windows_stype_path };
+use super::utils::{ clone_string_attribute, convert_from_windows_stype_path, is_absolute_path, normalize_path };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ColumnType {
@@ -25,7 +25,7 @@ pub struct LineInfo {
 }
 
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::*;
+
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
@@ -82,14 +82,17 @@ pub fn transform_debug_line(
         let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
         let mut path = dir_path.join(convert_from_windows_stype_path(&path));
 
-        if !path.is_absolute() {
+        if !is_absolute_path(&path.to_str().unwrap_or("")) {
             if let Some(comp_dir) = unit.comp_dir.clone() {
                 let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
-                let comp_dir =convert_from_windows_stype_path(&comp_dir);
+                let comp_dir = convert_from_windows_stype_path(&comp_dir);
                 path = Path::new(&comp_dir).join(path);
             }
         }
-        files.push(path);
+        
+        files.push(
+            PathBuf::from(&normalize_path(&path.to_string_lossy().into_owned()))
+        );
         file_sorted_rows.insert(file_index, BTreeMap::new());
     }
 
@@ -219,13 +222,14 @@ impl DwarfSourceMap {
 
     pub fn find_address(&self, file: &LineInfo) -> Option<usize> {
         let escaped_filename = convert_from_windows_stype_path(&file.filepath);
+        let escaped_filename = normalize_path(&escaped_filename);
         console_log!("{}", escaped_filename);
-        let filename_buf = Path::new(escaped_filename.as_str());
+        console_log!("- - -");
         let line_vec = match self
             .file_sorted_rows
             .binary_search_by(|i| { 
                 console_log!("{}", i.0);
-                Path::new(i.0.as_str()).cmp(&filename_buf)
+                i.0.cmp(&escaped_filename)
             })
         {
             Ok(i) => &self.file_sorted_rows[i].1,
