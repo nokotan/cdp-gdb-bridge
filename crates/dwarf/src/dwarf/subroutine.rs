@@ -6,7 +6,7 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name };
+use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, VariableLocation, parse_dwarf, header_from_offset, unit_type_name };
 use super::variables::{ FrameBase, VariableContent, VariableName, subroutine_variables, evaluate_variable_location, create_variable_info };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
@@ -281,14 +281,14 @@ impl DwarfSubroutineMap {
         };
 
         let var = variables.remove(var_index);
-        let mut calculated_address = 0;
+        let mut calculated_address = Vec::new();
 
         for content in var.contents {
 
             match content {
                 VariableContent::Location(location) => match location {
                     AttributeValue::Exprloc(expr) => {
-                        let piece = evaluate_variable_location(subroutine.encoding, &frame_base, expr)?;
+                        let piece = evaluate_variable_location(unit.encoding(), &frame_base, expr.clone())?;
                         let piece = match piece.iter().next() {
                             Some(p) => p,
                             None => {
@@ -298,32 +298,23 @@ impl DwarfSubroutineMap {
                         };
             
                         match piece.location {
-                            gimli::Location::Address { address } => { calculated_address += address; },
+                            gimli::Location::Address { address } => { calculated_address.push(VariableLocation::Address(address)); },
                             _ => unimplemented!(),
                         };
                     }
                     AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
-                    AttributeValue::Data1(b) => {
-                        calculated_address += b as u64;
-                    },
-                    AttributeValue::Data2(b) => {
-                        calculated_address += b as u64;
-                    },
-                    AttributeValue::Data4(b) => {
-                        calculated_address += b as u64;
-                    },
-                    AttributeValue::Data8(b) => {
-                        calculated_address += b as u64;
-                    },
                     AttributeValue::Sdata(b) => {
-                        calculated_address = (calculated_address as i64 + b) as u64;
+                        calculated_address.push(VariableLocation::Offset(b));
                     },
                     AttributeValue::Udata(b) => {
-                        calculated_address += b;
+                        calculated_address.push(VariableLocation::Offset(b as i64));
                     },
-                    _ => panic!(),
+                    _ => panic!()
                 },
                 VariableContent::ConstValue(ref _bytes) => unimplemented!(),
+                VariableContent::Pointer => {
+                    calculated_address.push(VariableLocation::Pointer);
+                },
                 VariableContent::Unknown { ref debug_info } => {
                     unimplemented!("Unknown variable content found {}", debug_info)
                 }

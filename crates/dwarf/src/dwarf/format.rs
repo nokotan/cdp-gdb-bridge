@@ -12,7 +12,7 @@ pub fn format_object(
             let byte_size = varinfo.byte_size;
             let encoding = varinfo.encoding;
             let mut bytes = Vec::new();
-            bytes.extend_from_slice(&varinfo.memory_slice[0..(byte_size as usize)]);
+            bytes.extend_from_slice(&varinfo.memory_slice.memory_slice[0..(byte_size as usize)]);
 
             match encoding {
                 gimli::DW_ATE_signed => {

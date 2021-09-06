@@ -324,10 +324,16 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
             return;
         }
 
-        const result = await this.evaluateMemory(wasmVariable.address, wasmVariable.byte_size);
-        wasmVariable.set_memory_slice(new Uint8Array(result));
+        let evaluationResult = wasmVariable.evaluate() || '<failure>';
 
-        return wasmVariable.print()!;
+        while (wasmVariable.is_required_memory_slice()) { 
+            const slice = wasmVariable.required_memory_slice();
+            const result = await this.evaluateMemory(slice.address, slice.byte_size);
+            slice.set_memory_slice(new Uint8Array(result));
+            evaluationResult = wasmVariable.resume_with_memory_slice(slice) || evaluationResult;
+        }
+
+        return evaluationResult;
     }
 
     private async evaluateMemory(address: number, size: number) {

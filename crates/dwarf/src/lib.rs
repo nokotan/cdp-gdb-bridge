@@ -6,25 +6,24 @@ use std::rc::{Rc};
 
 mod dwarf;
 
-use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf };
+use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf, log };
 use crate::dwarf::wasm_bindings::{ 
     WasmLineInfo, WasmValueVector, VariableVector
 };
 
+// #[wasm_bindgen]
+// extern "C" {
+//     // Use `js_namespace` here to bind `console.log(..)` instead of just
+//     // `log(..)`
+//     #[wasm_bindgen(js_namespace = console)]
+//     fn log(s: &str);
+// }
 
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
-macro_rules! console_log {
-    // Note that this is using the `log` function imported above during
-    // `bare_bones`
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
+// macro_rules! console_log {
+//     // Note that this is using the `log` function imported above during
+//     // `bare_bones`
+//     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+// }
 
 #[wasm_bindgen]
 pub struct DwarfDebugSymbolContainer {

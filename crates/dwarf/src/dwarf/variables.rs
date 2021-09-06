@@ -5,7 +5,9 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name };
+use super::{ 
+    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, 
+    parse_dwarf, header_from_offset, unit_type_name };
 use super::subroutine::{ Subroutine };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
@@ -27,7 +29,15 @@ pub struct SymbolVariable
 pub enum VariableContent {
     Location(gimli::AttributeValue<DwarfReader>),
     ConstValue(Vec<u8>),
+    Pointer,
     Unknown { debug_info: String },
+}
+
+#[derive(Clone)]
+pub enum VariableLocation {
+    Address(u64),
+    Offset(i64),
+    Pointer
 }
 
 pub enum FrameBase {
@@ -56,8 +66,8 @@ pub fn transform_global_variable(
                     }
                 }
 
-                let var = transform_variable(&dwarf, &unit, child.entry(), Some(unit_offset))?;
-                subroutine_structure_variables_rec(child, dwarf, unit, &var, &mut variables)?;
+                let mut var = transform_variable(&dwarf, &unit, child.entry(), Some(unit_offset))?;
+                subroutine_structure_variables_rec(child, dwarf, unit, &mut var, &mut variables)?;
                 variables.push(var);
             },
             _ => continue
@@ -93,8 +103,8 @@ fn subroutine_variables_rec(
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let var = transform_variable(&dwarf, &unit, child.entry(), None)?;
-                subroutine_structure_variables_rec(child, dwarf, unit, &var, variables)?;
+                let mut var = transform_variable(&dwarf, &unit, child.entry(), None)?;
+                subroutine_structure_variables_rec(child, dwarf, unit, &mut var, variables)?;
                 variables.push(var);
             }
             gimli::DW_TAG_lexical_block => {
@@ -126,7 +136,7 @@ fn subroutine_structure_variables_rec(
     node: gimli::EntriesTreeNode<DwarfReader>,
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
-    parent_variable: &SymbolVariable,
+    parent_variable: &mut SymbolVariable,
     variables: &mut Vec<SymbolVariable>
 ) -> Result<()> {
 
@@ -142,7 +152,7 @@ fn subroutine_structure_variables_rec(
                         let mut contents = parent_variable.contents.clone();
                         contents.append(&mut var.contents);
 
-                        let var = SymbolVariable {
+                        let mut var = SymbolVariable {
                             name: Some(format!(
                                 "{}.{}", 
                                 parent_variable.name.clone().unwrap_or("<unnamed>".to_string()), 
@@ -150,14 +160,14 @@ fn subroutine_structure_variables_rec(
                             )),
                             contents,
                             ty_offset: var.ty_offset,
-                            unit_offset: None
+                            unit_offset: var.unit_offset
                         };
 
-                        if let Some(offset) = var.ty_offset {
-                            let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-                            let root = tree.root()?;
-                            subroutine_structure_variables_rec(root, dwarf, unit, &var, variables)?;
-                        }
+                        // if let Some(offset) = var.ty_offset {
+                        //     let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+                        //     let root = tree.root()?;
+                        //     subroutine_structure_variables_rec(root, dwarf, unit, &mut var, variables)?;
+                        // }
                         
                         variables.push(var);
                     },
@@ -165,14 +175,17 @@ fn subroutine_structure_variables_rec(
                 }  
             }
         },
-        gimli::DW_TAG_pointer_type => {
+        other => {
+            if other == gimli::DW_TAG_pointer_type {
+                parent_variable.contents.push(VariableContent::Pointer);
+            }
 
-        },
-        _ => {
-            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {
-                let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
-                let root = tree.root()?;
-                subroutine_structure_variables_rec(root, dwarf, unit, parent_variable, variables)?;
+            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
+                if node.entry().offset() != *offset {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
+                    let root = tree.root()?;
+                    subroutine_structure_variables_rec(root, dwarf, unit, parent_variable, variables)?;
+                }
             } 
         }
     }
@@ -335,7 +348,7 @@ impl DwarfGlobalVariables {
         };
 
         let unit = dwarf.unit(header)?;
-        let mut calculated_address = 0;
+        let mut calculated_address = Vec::new();
 
         for content in &var.contents {
 
@@ -352,32 +365,23 @@ impl DwarfGlobalVariables {
                         };
             
                         match piece.location {
-                            gimli::Location::Address { address } => { calculated_address += address; },
+                            gimli::Location::Address { address } => { calculated_address.push(VariableLocation::Address(address)); },
                             _ => unimplemented!(),
                         };
                     }
                     AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
-                    AttributeValue::Data1(b) => {
-                        calculated_address += *b as u64;
-                    },
-                    AttributeValue::Data2(b) => {
-                        calculated_address += *b as u64;
-                    },
-                    AttributeValue::Data4(b) => {
-                        calculated_address += *b as u64;
-                    },
-                    AttributeValue::Data8(b) => {
-                        calculated_address += *b as u64;
-                    },
                     AttributeValue::Sdata(b) => {
-                        calculated_address = (calculated_address as i64 + b) as u64;
+                        calculated_address.push(VariableLocation::Offset(*b));
                     },
                     AttributeValue::Udata(b) => {
-                        calculated_address += b;
+                        calculated_address.push(VariableLocation::Offset(*b as i64));
                     },
                     _ => panic!(),
                 },
                 VariableContent::ConstValue(ref _bytes) => unimplemented!(),
+                VariableContent::Pointer => {
+                    calculated_address.push(VariableLocation::Pointer);
+                },
                 VariableContent::Unknown { ref debug_info } => {
                     unimplemented!("Unknown variable content found {}", debug_info)
                 }
@@ -414,12 +418,12 @@ impl DwarfGlobalVariables {
 
 pub fn create_variable_info<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
-    address: u64,
+    address: Vec<VariableLocation>,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R>,
 ) -> Result<VariableInfo> {
     match node.entry().tag() {
-        gimli::DW_TAG_base_type | gimli::DW_TAG_pointer_type => {
+        gimli::DW_TAG_base_type => {
             let entry = node.entry();
             let name = match entry.attr_value(gimli::DW_AT_name)? {
                 Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
@@ -438,12 +442,13 @@ pub fn create_variable_info<R: gimli::Reader>(
                 .unwrap_or(gimli::constants::DW_ATE_unsigned);
 
             Ok(VariableInfo {
-                address: address as usize,
+                address_expr: address,
                 byte_size: byte_size as usize,
                 name,
                 encoding,
                 tag: gimli::DW_TAG_base_type,
-                memory_slice: Vec::new()
+                memory_slice: MemorySlice::new(),
+                state: VariableEvaluationResult::Ready
             })
         }
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
@@ -477,12 +482,13 @@ pub fn create_variable_info<R: gimli::Reader>(
             }
             
             Ok(VariableInfo {
-                address: address as usize,
+                address_expr: address,
                 byte_size: byte_size as usize,
                 name: format!("{} {{ {} }}", type_name, members.join(", ")),
                 encoding: gimli::DW_ATE_signed,
                 tag,
-                memory_slice: Vec::new()
+                memory_slice: MemorySlice::new(),
+                state: VariableEvaluationResult::Ready
             })
         }
         _ => Err(anyhow!("unsupported DIE type")),

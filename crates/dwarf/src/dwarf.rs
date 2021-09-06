@@ -12,6 +12,7 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 use std::borrow::Borrow;
+use num_bigint::{BigUint};
 
 pub mod sourcemap;
 pub mod subroutine;
@@ -23,20 +24,21 @@ mod utils;
 
 use sourcemap::{ DwarfSourceMap, transform_debug_line };
 use subroutine::{ DwarfSubroutineMap, transform_subprogram };
-use variables::{ DwarfGlobalVariables, transform_global_variable };
+use variables::{ DwarfGlobalVariables, VariableLocation, transform_global_variable };
 use format::{ format_object };
 use utils::{ clone_string_attribute };
 
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
+
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
     // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
+    pub fn log(s: &str);
 }
 
+#[macro_export]
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
@@ -178,12 +180,44 @@ fn unit_type_name<R: gimli::Reader>(
 }
 
 #[wasm_bindgen]
-pub struct VariableInfo {
+#[derive(Clone)]
+pub struct MemorySlice {
     pub address: usize,
     pub byte_size: usize,
 
-    name: String,
     memory_slice: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl MemorySlice {
+    pub(crate) fn new() -> Self {
+        Self {
+            address: 0,
+            byte_size: 0,
+            memory_slice: Vec::new()
+        }
+    }
+
+    pub fn set_memory_slice(&mut self, data: &[u8]) {
+        self.memory_slice = data.to_vec();
+    }
+}
+
+enum VariableEvaluationResult {
+    Ready,
+    Complete,
+    RequireMemorySlice(MemorySlice)
+}
+
+#[wasm_bindgen]
+pub struct VariableInfo {
+    name: String,
+   
+    pub(crate) address_expr: Vec<VariableLocation>, 
+    pub(crate) byte_size: usize,
+    pub(crate) memory_slice: MemorySlice,
+
+    state: VariableEvaluationResult,
 
     tag: gimli::DwTag,
     encoding: gimli::DwAte,
@@ -191,14 +225,109 @@ pub struct VariableInfo {
 
 #[wasm_bindgen]
 impl VariableInfo {
-    pub fn set_memory_slice(&mut self, data: &[u8]) {
-        self.memory_slice = data.to_vec();
+    pub fn evaluate(&mut self) -> Option<String> {
+        match self.state {
+            VariableEvaluationResult::Ready => {},
+            _ => { return None; }
+        }
+
+        if self.address_expr.len() == 0 {
+            self.state = VariableEvaluationResult::Complete;
+
+            match format_object(self) {
+                Ok(x) => Some(x),
+                Err(_) => None
+            }
+        } else {
+            let mut address = 0;
+            let mut byte_size = self.byte_size;
+
+            while self.address_expr.len() != 0 {
+                match self.address_expr.remove(0) {
+                    VariableLocation::Address(addr) => { address = addr; },
+                    VariableLocation::Offset(off) => { address = (address as i64 + off) as u64 },
+                    VariableLocation::Pointer => {
+                        byte_size = 4;
+                        self.address_expr.insert(0, VariableLocation::Pointer);
+                        break;
+                    }
+                }
+            };
+
+            self.state = VariableEvaluationResult::RequireMemorySlice(
+                MemorySlice {
+                    address: address as usize,
+                    byte_size,
+                    memory_slice: Vec::new()
+                }
+            );
+            None
+        }
     }
 
-    pub fn print(&self) -> Option<String> {
-        match format_object(self) {
-            Ok(str) => { Some(str) },
-            Err(_) => { None }
+    pub fn resume_with_memory_slice(&mut self, memory: MemorySlice) -> Option<String> {
+        match self.state {
+            VariableEvaluationResult::RequireMemorySlice(_) => {},
+            _ => { return None; }
         }
+
+        if let Some(VariableLocation::Pointer) = self.address_expr.first() {
+            self.address_expr.remove(0);
+            self.address_expr.insert(0, VariableLocation::Address(
+                BigUint::from_bytes_le(&memory.memory_slice).to_u64_digits()[0]
+            ));
+        }
+
+        self.memory_slice = memory;
+
+        if self.address_expr.len() == 0 {
+            self.state = VariableEvaluationResult::Complete;
+
+            match format_object(self) {
+                Ok(x) => Some(x),
+                Err(_) => None
+            }
+        } else {
+            let mut address = 0;
+            let mut byte_size = self.byte_size;
+
+            while self.address_expr.len() != 0 {
+                match self.address_expr.remove(0) {
+                    VariableLocation::Address(addr) => { address = addr; },
+                    VariableLocation::Offset(off) => { address = (address as i64 + off) as u64 },
+                    VariableLocation::Pointer => {
+                        byte_size = 4;
+                        break;
+                    }
+                }
+            };
+
+            self.state = VariableEvaluationResult::RequireMemorySlice(
+                MemorySlice {
+                    address: address as usize,
+                    byte_size,
+                    memory_slice: Vec::new()
+                }
+            );
+            None
+        }
+    }
+
+    pub fn is_required_memory_slice(&self) -> bool {
+        match self.state {
+            VariableEvaluationResult::RequireMemorySlice(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_completed(&self) -> bool {
+        match self.state {
+            VariableEvaluationResult::Complete => true,
+            _ => false
+        }
+    }
+
+    pub fn required_memory_slice(&self) -> MemorySlice {
+        self.memory_slice.clone()
     }
 }
