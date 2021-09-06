@@ -24,7 +24,7 @@ mod utils;
 
 use sourcemap::{ DwarfSourceMap, transform_debug_line };
 use subroutine::{ DwarfSubroutineMap, transform_subprogram };
-use variables::{ DwarfGlobalVariables, VariableLocation, transform_global_variable };
+use variables::{ DwarfGlobalVariables, VariableLocation };
 use format::{ format_object };
 use utils::{ clone_string_attribute };
 
@@ -94,7 +94,6 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
-    let mut variables = Vec::new();
     let mut entry_num = 0;
     
     while let Some(header) = headers.next()? {
@@ -113,7 +112,6 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
             &dwarf.debug_line,
         )?);
         subroutines.append(&mut transform_subprogram(&dwarf, &unit, header_offset)?);
-        variables.append(&mut transform_global_variable(&dwarf, &unit, header_offset)?);
     }
 
     console_log!("found {} entries", entry_num);
@@ -125,7 +123,6 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
             buffer: buffer.clone(),
         },
         global_variables: DwarfGlobalVariables {
-            variables,
             buffer: buffer.clone(),
         }
     })
@@ -161,8 +158,7 @@ fn unit_type_name<R: gimli::Reader>(
     let root = tree.root()?;
 
     match root.entry().tag() {
-        gimli::DW_TAG_base_type | gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type
-        | gimli::DW_TAG_pointer_type => {
+        gimli::DW_TAG_base_type | gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
             if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
                 clone_string_attribute(dwarf, unit, attr)
             } else {
@@ -234,10 +230,10 @@ impl VariableInfo {
         if self.address_expr.len() == 0 {
             self.state = VariableEvaluationResult::Complete;
 
-            match format_object(self) {
+            return match format_object(self) {
                 Ok(x) => Some(x),
                 Err(_) => None
-            }
+            };
         } else {
             let mut address = 0;
             let mut byte_size = self.byte_size;
@@ -254,14 +250,16 @@ impl VariableInfo {
                 }
             };
 
-            self.state = VariableEvaluationResult::RequireMemorySlice(
-                MemorySlice {
-                    address: address as usize,
-                    byte_size,
-                    memory_slice: Vec::new()
-                }
-            );
-            None
+            let slice = MemorySlice {
+                address: address as usize,
+                byte_size,
+                memory_slice: Vec::new()
+            };
+
+            self.memory_slice = slice.clone();
+            self.state = VariableEvaluationResult::RequireMemorySlice(slice);
+
+            return None;
         }
     }
 

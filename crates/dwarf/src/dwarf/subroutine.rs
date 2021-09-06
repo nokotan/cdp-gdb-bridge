@@ -6,24 +6,10 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, VariableLocation, parse_dwarf, header_from_offset, unit_type_name };
-use super::variables::{ FrameBase, VariableContent, VariableName, subroutine_variables, evaluate_variable_location, create_variable_info };
+use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name, log };
+use super::variables::{ FrameBase, VariableName, variables_in_unit_entry, evaluate_variable_from_string };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
-
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
-macro_rules! console_log {
-    // Note that this is using the `log` function imported above during
-    // `bare_bones`
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
 
 #[derive(Clone)]
 pub enum WasmLoc {
@@ -186,15 +172,7 @@ impl DwarfSubroutineMap {
 
     pub fn variable_name_list(&self, code_offset: usize) -> Result<Vec<VariableName>> {
         let offset = code_offset as u64;
-        let subroutine = match self
-            .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(&offset))
-            .next()
-        {
-            Some(s) => s,
-            None => return Err(anyhow!("failed to determine subroutine")),
-        };
+        let subroutine = self.find_subroutine(code_offset)?;
         let dwarf = parse_dwarf(&self.buffer)?;
         let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
             Some(header) => header,
@@ -204,7 +182,8 @@ impl DwarfSubroutineMap {
         };
 
         let unit = dwarf.unit(header)?;
-        let variables = subroutine_variables(&dwarf, &unit, &subroutine, offset)?;
+        let entry_offset = subroutine.entry_offset;
+        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset)?;
 
         Ok(variables
             .iter()
@@ -224,35 +203,18 @@ impl DwarfSubroutineMap {
             .collect())
     }
 
-    pub fn get_frame_base(&self, code_offset: usize) -> Result<Option<WasmLoc>> {
-        let offset = &(code_offset as u64);
-        let subroutine = match self
-            .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(offset))
-            .next()
-        {
-            Some(s) => s,
-            None => return Err(anyhow!("failed to determine subroutine")),
-        };
+    fn get_frame_base(&self, code_offset: usize) -> Result<Option<WasmLoc>> {
+        let subroutine = self.find_subroutine(code_offset)?;
         return Ok(subroutine.frame_base.clone());
     }
-    pub fn display_variable(
+    fn display_variable(
         &self,
         code_offset: usize,
         frame_base: FrameBase,
         name: &String,
     ) -> Result<Option<VariableInfo>> {
         let offset = code_offset as u64;
-        let subroutine = match self
-            .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(&offset))
-            .next()
-        {
-            Some(s) => s,
-            None => return Err(anyhow!("failed to determine subroutine")),
-        };
+        let subroutine = self.find_subroutine(code_offset)?;
         let dwarf = parse_dwarf(&self.buffer)?;
         let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
             Some(header) => header,
@@ -262,78 +224,10 @@ impl DwarfSubroutineMap {
         };
 
         let unit = dwarf.unit(header)?;
-        let mut variables = subroutine_variables(&dwarf, &unit, &subroutine, offset)?;
+        let entry_offset = subroutine.entry_offset;
+        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset)?;
 
-        let var_index = match variables
-            .iter()
-            .position(|v| {
-                if let Some(vname) = v.name.clone() {
-                    vname == *name
-                } else {
-                    false
-                }
-            })
-        {
-            Some(v) => v,
-            None => {
-                return Err(anyhow!("'{}' is not valid variable name", name));
-            }
-        };
-
-        let var = variables.remove(var_index);
-        let mut calculated_address = Vec::new();
-
-        for content in var.contents {
-
-            match content {
-                VariableContent::Location(location) => match location {
-                    AttributeValue::Exprloc(expr) => {
-                        let piece = evaluate_variable_location(unit.encoding(), &frame_base, expr.clone())?;
-                        let piece = match piece.iter().next() {
-                            Some(p) => p,
-                            None => {
-                                println!("failed to get piece of variable");
-                                return Ok(None);
-                            }
-                        };
-            
-                        match piece.location {
-                            gimli::Location::Address { address } => { calculated_address.push(VariableLocation::Address(address)); },
-                            _ => unimplemented!(),
-                        };
-                    }
-                    AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
-                    AttributeValue::Sdata(b) => {
-                        calculated_address.push(VariableLocation::Offset(b));
-                    },
-                    AttributeValue::Udata(b) => {
-                        calculated_address.push(VariableLocation::Offset(b as i64));
-                    },
-                    _ => panic!()
-                },
-                VariableContent::ConstValue(ref _bytes) => unimplemented!(),
-                VariableContent::Pointer => {
-                    calculated_address.push(VariableLocation::Pointer);
-                },
-                VariableContent::Unknown { ref debug_info } => {
-                    unimplemented!("Unknown variable content found {}", debug_info)
-                }
-            };        
-        }
-        
-
-        if let Some(offset) = var.ty_offset {
-            let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-            let root = tree.root()?;
-            
-            return match create_variable_info(root, calculated_address, &dwarf, &unit) {
-                Ok(x) => Ok(Some(x)),
-                Err(_) => Ok(None)
-            };    
-        } else {
-            console_log!("no explicit type");
-        }
-        Ok(None)
+        evaluate_variable_from_string(name, &variables, &dwarf, &unit, frame_base)
     }
 
     pub fn get_variable_info(
