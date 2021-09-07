@@ -1,7 +1,8 @@
 import { DebugProtocol } from 'vscode-debugprotocol';
 import {
 	LoggingDebugSession,
-	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent
+	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent,
+	InitializedEvent
 } from 'vscode-debugadapter';
 import { launch, LaunchedChrome } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
@@ -75,6 +76,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.session.jumpToPage(args.url);
 
 		this.sendResponse(response);
+		this.sendEvent(new InitializedEvent());
 	}
 
 	protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {

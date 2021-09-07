@@ -1,7 +1,7 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import {
-	StoppedEvent, InitializedEvent,
+	StoppedEvent, BreakpointEvent
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
 import { WasmValueVector, DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
@@ -23,8 +23,9 @@ export interface IBreakPoint {
 }
 
 interface BreakPointMapping {
-    id: number;
-    rawId: string;
+    id?: number;
+    rawId?: string;
+    verified: boolean;
 }
 
 type RuntimeBreakPoint = BreakPointMapping & FileLocation;
@@ -465,7 +466,7 @@ export class DebugSessionManager implements DebuggerCommand {
         return await this.sessionState.dumpVariable(expr);
     }
 
-    async setBreakPoint(location: string) {
+    async setBreakPoint(location: string): Promise<IBreakPoint> {
         const fileInfo = location.split(':');
         
         if (fileInfo.length < 2)
@@ -477,47 +478,108 @@ export class DebugSessionManager implements DebuggerCommand {
         const debugfilename = fileInfo.join(":");
 
         const wasmLocation = this.session.findAddressFromFileLocation(debugfilename, debugline);
-        const bp = await this.debugger.setBreakpoint({ 
-            location: { 
-                scriptId: wasmLocation?.scriptId!,  
-                lineNumber: wasmLocation?.line!,
-                columnNumber: wasmLocation?.column
-            } 
-        });
-
         const bpID =
             this.breakPoints.length > 0
-            ? Math.max.apply(null, this.breakPoints.map(x => x.id)) + 1
+            ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1
             : 1;
-        
-        this.breakPoints.push({
+
+        if (!wasmLocation) {
+            console.log("cannot find address of specified file");
+
+            const bpInfo = {
+                id: bpID,
+                file: debugfilename,
+                line: debugline,
+                verified: false
+            };
+
+            this.breakPoints.push(bpInfo);
+            return bpInfo;
+        }
+
+        const wasmDebuggerLocation = { 
+            scriptId: wasmLocation.scriptId,  
+            lineNumber: wasmLocation.line,
+            columnNumber: wasmLocation.column
+        };
+
+        const bp = await this.debugger.setBreakpoint({ 
+            location: wasmDebuggerLocation
+        });
+
+        const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
+
+        const bpInfo = {
             id: bpID,
             rawId: bp.breakpointId,
-            file: debugfilename,
-            line: debugline
-        })
+            file: correspondingLocation.file(),
+            line: correspondingLocation.line!,
+            verified: true
+        };
+        
+        this.breakPoints.push(bpInfo);
+        return bpInfo;
+    }
 
-        return { id: bpID, line: debugline, verified: true };
+    async updateBreakPoint() {
+        const promises = this.breakPoints.filter(x => !x.verified).map(async bpInfo => {
+            const wasmLocation = this.session.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
+    
+            if (!wasmLocation) {
+                console.log("cannot find address of specified file");
+                return bpInfo;
+            }
+    
+            const wasmDebuggerLocation = { 
+                scriptId: wasmLocation.scriptId,  
+                lineNumber: wasmLocation.line,
+                columnNumber: wasmLocation.column
+            };
+    
+            const bp = await this.debugger.setBreakpoint({ 
+                location: wasmDebuggerLocation
+            });
+    
+            const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
+
+            bpInfo.file = correspondingLocation.file();
+            bpInfo.line = correspondingLocation.line!;
+            bpInfo.rawId = bp.breakpointId;
+            bpInfo.verified = true;
+
+            return bpInfo;
+        });
+
+        const bps = await Promise.all(promises);
+        bps.filter(x => x.verified).forEach(x => {
+            this.debugAdapter.sendEvent(new BreakpointEvent('changed', x));
+        });
     }
 
     async removeBreakPoint(id: number) {
 
-        const promises = this.breakPoints.filter(x => x.id == id).map(async x => {
-            await this.debugger.removeBreakpoint({
-                breakpointId: x.rawId
+        const promises = this.breakPoints
+            .filter(x => x.id == id)
+            .filter(x => !!x.rawId)
+            .map(async x => {
+                await this.debugger.removeBreakpoint({
+                    breakpointId: x.rawId!
+                })
             })
-        })
 
         this.breakPoints = this.breakPoints.filter(x => x.id != id);   
         await Promise.all(promises);
     }
 
     async removeAllBreakPoints(path: string) {
-        const promises = this.breakPoints.filter(x => x.file == path).map(async x => {
-            await this.debugger.removeBreakpoint({
-                breakpointId: x.rawId
-            })
-        });
+        const promises = this.breakPoints
+            .filter(x => x.file == path)
+            .filter(x => !!x.rawId)
+            .map(async x => {
+                await this.debugger.removeBreakpoint({
+                    breakpointId: x.rawId!
+                })
+            });
 
         this.breakPoints = this.breakPoints.filter(x => x.file != path);  
         await Promise.all(promises);
@@ -563,7 +625,8 @@ export class DebugSessionManager implements DebuggerCommand {
             this.session.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
             console.log(`Finish Loading ${e.url}`);
-            this.debugAdapter.sendEvent(new InitializedEvent());
+
+            this.updateBreakPoint();
         }
     }
 
@@ -596,6 +659,7 @@ export class DebugSessionManager implements DebuggerCommand {
 
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
         console.log('Page navigated.');
+        this.breakPoints = [];
         this.session.reset();
     }
 }

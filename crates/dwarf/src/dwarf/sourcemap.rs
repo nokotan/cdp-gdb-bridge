@@ -240,7 +240,13 @@ impl DwarfSourceMap {
 
         match line_vec.binary_search_by_key(&file.line.unwrap(), |i| i.0) {
             Ok(i) => Some(line_vec[i].1.address() as usize),
-            Err(_) => None
+            Err(i) => {
+                if i > 0 {
+                    Some(line_vec[i - 1].1.address() as usize)
+                } else {
+                    return None;
+                }
+            }
         }
     }
 }
