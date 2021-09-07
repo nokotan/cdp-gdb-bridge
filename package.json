@@ -1,6 +1,6 @@
 {
   "name": "cdp-gdb-bridge",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "WebAssembly on Chrome cli debugger",
   "author": "kamenokonokotan",
   "publisher": "kamenokosoft",
@@ -10,11 +10,13 @@
   },
   "license": "MIT",
   "scripts": {
+    "clean": "rm -r dist/*",
     "build": "tsc --module commonjs",
     "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
     "prepack": "npm run build-crate && npm run build && rm crates/dwarf/pkg/.gitignore",
     "run": "node dist/cli/index.js",
-    "vscode:pack": "vsce package -o dist/",
+    "vscode:clean": "rm pack/*",
+    "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
     "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServer"
   },
   "bin": {
