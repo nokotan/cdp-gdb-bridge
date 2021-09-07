@@ -15,7 +15,7 @@
     "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
     "prepack": "npm run build-crate && npm run build && rm crates/dwarf/pkg/.gitignore",
     "run": "node dist/cli/index.js",
-    "vscode:clean": "rm pack/*",
+    "vscode:clean": "rm packed/* || true",
     "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
     "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServer"
   },
