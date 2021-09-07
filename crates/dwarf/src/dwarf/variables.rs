@@ -144,7 +144,7 @@ fn structure_variable_recursive(
                 }  
             }
         },
-        gimli::DW_TAG_pointer_type => {
+        gimli::DW_TAG_pointer_type | gimli::DW_TAG_reference_type => {
             parent_variable.contents.push(VariableExpression::Pointer);
 
             if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
@@ -228,11 +228,14 @@ pub fn evaluate_variable_from_string(
     unit: &Unit<DwarfReader, DwarfReaderOffset>,
     frame_base: FrameBase
 ) -> Result<Option<VariableInfo>> {
+    let name = name.replace("->", ".");
+    let this_name = format!("this.{}", name);
+
     let var = match variables
         .iter()
         .filter(|v| {
             if let Some(vname) = v.name.clone() {
-                vname == *name
+                vname == name || vname == this_name
             } else {
                 false
             }
@@ -404,8 +407,18 @@ fn create_variable_info<R: gimli::Reader>(
                 memory_slice: MemorySlice::new(),
                 state: VariableEvaluationResult::Ready
             })
+        },
+        _ => {
+            match node.entry().attr_value(gimli::DW_AT_type)? {
+                Some(AttributeValue::UnitRef(ref offset)) => {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
+                    let root = tree.root()?;
+
+                    create_variable_info(root, address, dwarf, unit)
+                },
+                _ => Err(anyhow!("unsupported DIE type"))
+            }
         }
-        _ => Err(anyhow!("unsupported DIE type")),
     }
 }
 

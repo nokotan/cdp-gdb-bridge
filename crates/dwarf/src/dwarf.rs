@@ -221,6 +221,7 @@ pub struct VariableInfo {
 
 #[wasm_bindgen]
 impl VariableInfo {
+
     pub fn evaluate(&mut self) -> Option<String> {
         match self.state {
             VariableEvaluationResult::Ready => {},
@@ -235,30 +236,7 @@ impl VariableInfo {
                 Err(_) => None
             };
         } else {
-            let mut address = 0;
-            let mut byte_size = self.byte_size;
-
-            while self.address_expr.len() != 0 {
-                match self.address_expr.remove(0) {
-                    VariableLocation::Address(addr) => { address = addr; },
-                    VariableLocation::Offset(off) => { address = (address as i64 + off) as u64 },
-                    VariableLocation::Pointer => {
-                        byte_size = 4;
-                        self.address_expr.insert(0, VariableLocation::Pointer);
-                        break;
-                    }
-                }
-            };
-
-            let slice = MemorySlice {
-                address: address as usize,
-                byte_size,
-                memory_slice: Vec::new()
-            };
-
-            self.memory_slice = slice.clone();
-            self.state = VariableEvaluationResult::RequireMemorySlice(slice);
-
+            self.evaluate_internal();
             return None;
         }
     }
@@ -281,34 +259,46 @@ impl VariableInfo {
         if self.address_expr.len() == 0 {
             self.state = VariableEvaluationResult::Complete;
 
-            match format_object(self) {
+            return match format_object(self) {
                 Ok(x) => Some(x),
                 Err(_) => None
-            }
+            };
         } else {
-            let mut address = 0;
+            self.evaluate_internal();
+            return None;
+        }
+    }
+
+    fn evaluate_internal(&mut self) {
+        let mut address = 0;
             let mut byte_size = self.byte_size;
 
             while self.address_expr.len() != 0 {
                 match self.address_expr.remove(0) {
-                    VariableLocation::Address(addr) => { address = addr; },
-                    VariableLocation::Offset(off) => { address = (address as i64 + off) as u64 },
+                    VariableLocation::Address(addr) => { 
+                        console_log!("address = {}", addr);
+                        address = addr; 
+                    }
+                    VariableLocation::Offset(off) => {
+                        console_log!("offset = {}", off); 
+                        address = (address as i64 + off) as u64 
+                    },
                     VariableLocation::Pointer => {
                         byte_size = 4;
+                        self.address_expr.insert(0, VariableLocation::Pointer);
                         break;
                     }
                 }
             };
 
-            self.state = VariableEvaluationResult::RequireMemorySlice(
-                MemorySlice {
-                    address: address as usize,
-                    byte_size,
-                    memory_slice: Vec::new()
-                }
-            );
-            None
-        }
+            let slice = MemorySlice {
+                address: address as usize,
+                byte_size,
+                memory_slice: Vec::new()
+            };
+
+            self.memory_slice = slice.clone();
+            self.state = VariableEvaluationResult::RequireMemorySlice(slice);
     }
 
     pub fn is_required_memory_slice(&self) -> bool {
