@@ -1,5 +1,6 @@
 {
   "name": "cdp-gdb-bridge",
+  "displayName": "WebAssembly on Chrome Debugger",
   "version": "1.0.10",
   "description": "WebAssembly on Chrome cli debugger",
   "author": "kamenokonokotan",
@@ -23,7 +24,12 @@
     "cdp-gdb-bridge": "dist/cli/index.js"
   },
   "keywords": [
-    "webassembly"
+    "webassembly",
+    "chrome",
+    "debugger"
+  ],
+  "categories": [
+    "Debuggers"
   ],
   "dependencies": {
     "chrome-launcher": "^0.14.0",
@@ -78,25 +84,22 @@
           {
             "type": "wasm",
             "request": "launch",
-            "name": "Ask for url",
-            "url": "${workspaceFolder}/${command:AskForProgramName}"
+            "name": "WebAssembly Debug",
+            "url": "http://localhost:8080/"
           }
         ],
         "configurationSnippets": [
           {
             "label": "WebAssembly Debug: Launch",
-            "description": "A new configuration for 'debugging' a user selected markdown file.",
+            "description": "A new configuration for 'debugging' wasm.",
             "body": {
               "type": "wasm",
               "request": "launch",
-              "name": "Ask for url",
-              "url": "^\"\\${workspaceFolder}/\\${command:AskForProgramName}\""
+              "name": "WebAssembly Debug",
+              "url": "http://localhost:8080/"
             }
           }
-        ],
-        "variables": {
-          "AskForProgramName": "extension.mock-debug.getProgramName"
-        }
+        ]
       }
     ]
   }

@@ -41,7 +41,7 @@ Start Loading http://localhost:8080/index.wasm...
 
 || Windows | macOS | Linux |
 | :--: | :--: | :--: | :--: |
-| Chrome | ❌ | ✅ | ❌ |
+| Chrome | ✅ | ✅ | ✅ |
 | FireFox | ❌ | ❌ | ❌ |
 | Safari | - | ❌ | - |
 | Edge | ❌ | - | - |
