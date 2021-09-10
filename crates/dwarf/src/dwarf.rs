@@ -284,11 +284,9 @@ impl VariableInfo {
             while self.address_expr.len() != 0 {
                 match self.address_expr.remove(0) {
                     VariableLocation::Address(addr) => { 
-                        console_log!("address = {}", addr);
                         address = addr; 
                     }
                     VariableLocation::Offset(off) => {
-                        console_log!("offset = {}", off); 
                         address = (address as i64 + off) as u64 
                     },
                     VariableLocation::Pointer => {

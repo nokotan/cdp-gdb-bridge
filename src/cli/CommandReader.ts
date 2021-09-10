@@ -1,4 +1,4 @@
-import { DebuggerCommand, IBreakPoint, Variable } from '../core/DebugSession';
+import { DebuggerCommand } from '../core/DebugCommand';
 import { createInterface } from 'readline';
 
 export class CommandReader {

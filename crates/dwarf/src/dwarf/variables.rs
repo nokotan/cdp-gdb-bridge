@@ -96,6 +96,9 @@ fn variables_in_unit_entry_recursive(
                     }
                 }
             }
+            gimli::DW_TAG_namespace => {
+                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables)?;
+            }
             _ => continue,
         }
     }

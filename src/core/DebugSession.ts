@@ -4,60 +4,13 @@ import {
 	StoppedEvent, BreakpointEvent
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
-import { WasmValueVector, DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
-import { createWasmValueStore } from './InterOp'
+import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
-import { existsSync, readFileSync } from "fs"
+import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint } from './DebugCommand';
+import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
+import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
 
-
-export interface Variable {
-    name: string;
-    type: string;
-}
-
-export interface IBreakPoint {
-    id?: number;
-    line?: number;
-    column?: number;
-    verified: boolean;
-}
-
-interface BreakPointMapping {
-    id?: number;
-    rawId?: string;
-    verified: boolean;
-}
-
-type RuntimeBreakPoint = BreakPointMapping & FileLocation;
-
-interface StackFrameFunction {
-	index: number;
-	name: string;
-	instruction?: number;
-}
-
-export interface FileLocation {
-    file: string,
-    line: number,
-    column?: number
-}
-
-type IRuntimeStackFrame = StackFrameFunction & FileLocation;
-
-interface WebAssemblyDebugState {
-    stacks: WasmValueVector;
-    locals: WasmValueVector;
-    globals: WasmValueVector;
-}
-
-interface RuntimeStackFrame {
-    frame: Protocol.Debugger.CallFrame;
-    stack: IRuntimeStackFrame;
-    state?: WebAssemblyDebugState;
-    statePromise?: Promise<WebAssemblyDebugState>;
-} 
-
-class DebugSession {
+export class DebugSession {
 
     sources: WebAssemblyFile[];
 
@@ -140,272 +93,6 @@ class DebugSession {
     }
 }
 
-interface DebuggerDumpCommand {
-    showLine(): Promise<void>;
-    getStackFrames(): Promise<IRuntimeStackFrame[]>;
-    setFocusedFrame(index: number): Promise<void>;
-    listVariable(): Promise<Variable[]>;
-    listGlobalVariable(): Promise<Variable[]>;
-    dumpVariable(expr: string): Promise<string | undefined>;
-}
-
-interface DebuggerWorkflowCommand {
-    stepOver(): Promise<void>;
-    stepIn(): Promise<void>;
-    stepOut(): Promise<void>;
-    continue(): Promise<void>;
-}
-
-interface DebuggerOtherCommand {
-    setBreakPoint(location: string): Promise<IBreakPoint>;
-    removeBreakPoint(id: number): Promise<void>;
-    removeAllBreakPoints(path: string): Promise<void>;
-    getBreakPointsList(location: string): Promise<IBreakPoint[]>;
-    jumpToPage(url: string): Promise<void>;
-}
-
-export type DebuggerCommand = DebuggerWorkflowCommand & DebuggerDumpCommand & DebuggerOtherCommand;
-
-class NormalSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand {
-    async stepOver() {
-        console.warn('Debugger not paused!');
-    }
-    async stepIn() {
-        console.warn('Debugger not paused!');
-    }
-    async stepOut() {
-        console.warn('Debugger not paused!');
-    }
-    async continue() {
-        console.warn('Debugger not paused!');
-    }
-    async getStackFrames() {
-        console.warn('Debugger not paused!');
-        return [];
-    }
-    async showLine() {
-        console.warn('Debugger not paused!');
-    }
-    async listVariable() {
-        console.warn('Debugger not paused!');
-        return [];
-    }
-    async listGlobalVariable() {
-        console.warn('Debugger not paused!');
-        return [];
-    }
-    async dumpVariable() {
-        console.warn('Debugger not paused!');
-        return undefined;
-    }
-    async setFocusedFrame() {
-        console.warn('Debugger not paused!');
-    }
-}
-
-class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand {
-
-    private debugger: ProtocolApi.DebuggerApi;
-    private runtime: ProtocolApi.RuntimeApi;
-    private debugSession: DebugSession;
-    private stackFrames: RuntimeStackFrame[];
-    private selectedFrameIndex: number = 0;
-
-    constructor(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi, _debugSession: DebugSession, _stackFrames: RuntimeStackFrame[]) {
-        this.debugger = _debugger;
-        this.runtime = _runtime;
-        this.debugSession = _debugSession;
-        this.stackFrames = _stackFrames;
-    }
-
-    async stepOver() {
-        await this.debugger.stepOver({});
-    }
-
-    async stepIn() {
-        await this.debugger.stepInto({});
-    }
-
-    async stepOut() {
-        await this.debugger.stepOut();
-    }
-
-    async continue() {
-        await this.debugger.resume({});
-    }
-
-    async getStackFrames() {
-        return this.stackFrames.map(x => x.stack);
-    }
-
-    async setFocusedFrame(index: number) {
-        this.selectedFrameIndex = index;
-    }
-
-    async showLine() {  
-        const frame = this.stackFrames[this.selectedFrameIndex];
-
-        if (existsSync(frame.stack.file)) {
-            const lines = readFileSync(frame.stack.file, { encoding: 'utf8' }).replace(/\t/g, '    ').split('\n');
-            const startLine = Math.max(0, frame.stack.line - 10);
-            const endLine = Math.min(lines.length - 1, frame.stack.line + 10);
-
-            for (let i = startLine; i <= endLine; i++) {
-                console.log((i + 1 == frame.stack.line ? '->' : '  ') + ` ${i + 1}  ${lines[i]}`);
-            }
-        } else {
-            console.log('not available.')
-        }
-    }
-
-    async listVariable() {
-        const frame = this.stackFrames[this.selectedFrameIndex];
-        const varlist = this.debugSession.getVariablelistFromAddress(frame.stack.instruction!);
-
-        if (!varlist) {
-            console.log('not available.');
-            return [];
-        }
-
-        let list: Variable[] = [];
-
-        for (let i = 0; i < varlist.size(); i++)
-        {
-            const name = varlist.at_name(i);
-            const type = varlist.at_type_name(i);
-
-            list.push({
-                name, type
-            })
-        }
-
-        return list;
-    }
-
-    async listGlobalVariable() {
-        const frame = this.stackFrames[this.selectedFrameIndex];
-        const varlists = this.debugSession.getGlobalVariablelist(frame.stack.instruction!);
-
-        if (varlists.length <= 0) {
-            console.log('not available.');
-            return [];
-        }
-
-        let list: Variable[] = [];
-
-        for (const varlist of varlists) {
-            if (!varlist) {
-                continue
-            }
-            
-            for (let i = 0; i < varlist.size(); i++)
-            {
-                const name = varlist.at_name(i);
-                const type = varlist.at_type_name(i);
-
-                list.push({
-                    name, type
-                })
-            }
-        }
-
-        return list;
-    }
-
-    async dumpVariable(expr: string) {
-        const frame = this.stackFrames[this.selectedFrameIndex];
-
-        if (!frame.state) {
-            if (!frame.statePromise) {
-                frame.statePromise = this.createWasmValueStore(frame.frame);
-            }
-            
-            frame.state = await frame.statePromise;
-        }
-
-        const wasmVariable = this.debugSession.getVariableValue(expr, frame.stack.instruction!, frame.state);
-
-        if (!wasmVariable) {
-            console.log('not available.');
-            return;
-        }
-
-        let evaluationResult = wasmVariable.evaluate() || '<failure>';
-        let limit = 0;
-
-        while (wasmVariable.is_required_memory_slice() && limit < 20) { 
-            const slice = wasmVariable.required_memory_slice();
-            const result = await this.evaluateMemory(slice.address, slice.byte_size);
-            slice.set_memory_slice(new Uint8Array(result));
-            evaluationResult = wasmVariable.resume_with_memory_slice(slice) || evaluationResult;
-
-            limit++;
-        }
-
-        return evaluationResult;
-    }
-
-    private async evaluateMemory(address: number, size: number) {
-        const evalResult = await this.debugger.evaluateOnCallFrame({
-            callFrameId: this.stackFrames[0].frame.callFrameId,
-            expression: `new Uint8Array(memories[0].buffer).subarray(${address}, ${address + size})`,
-            returnByValue: true
-        });
-
-        return Object.values(evalResult.result.value) as number[];
-    }
-
-    private async createWasmValueStore(frame: Protocol.Debugger.CallFrame) {
-        const getStackStore = async () => {
-            const wasmStackObject = (await this.runtime.getProperties({ 
-                objectId: frame.scopeChain[0].object.objectId!,
-                ownProperties: true
-            })).result;
-    
-            const wasmStacks = (await this.runtime.getProperties({
-                objectId: wasmStackObject[0].value!.objectId!,
-                ownProperties: true
-            })).result;
-    
-            return await createWasmValueStore(this.runtime, wasmStacks);
-        }
-
-        const getLocalsStore = async () => {
-            const wasmLocalObject = (await this.runtime.getProperties({ 
-                objectId: frame.scopeChain[1].object.objectId!,
-                ownProperties: true
-            })).result;
-    
-            return await createWasmValueStore(this.runtime, wasmLocalObject);
-        }
-
-        const getGlobalsStore = async () => {
-            const wasmModuleObject = (await this.runtime.getProperties({ 
-                objectId: frame.scopeChain[2].object.objectId!,
-                ownProperties: true
-            })).result;
-    
-            const wasmGlobalsObject = wasmModuleObject.filter(x => x.name == 'globals')[0];
-    
-            const wasmGlobals = (await this.runtime.getProperties({
-                objectId: wasmGlobalsObject.value!.objectId!,
-                ownProperties: true
-            })).result;
-    
-            return await createWasmValueStore(this.runtime, wasmGlobals);
-        }
-
-        const [ StacksStore, LocalsStore, GlobalsStore] 
-            = await Promise.all([ getStackStore(), getLocalsStore(), getGlobalsStore() ]);
-
-        return {
-            stacks: StacksStore,
-            globals: GlobalsStore,
-            locals: LocalsStore
-        }
-    }
-}
-
 export class DebugSessionManager implements DebuggerCommand {
     private session: DebugSession;
     private debugger: ProtocolApi.DebuggerApi;
@@ -426,7 +113,7 @@ export class DebugSessionManager implements DebuggerCommand {
         this.runtime = _runtime;
         this.debugAdapter = _debugAdapter;
 
-        this.sessionState = new NormalSessionState();
+        this.sessionState = new RunningDebugSessionState();
 
         this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
         this.debugger.on('paused', (e) => this.onPaused(e));
@@ -656,13 +343,13 @@ export class DebugSessionManager implements DebuggerCommand {
             };
         });
 
-        this.sessionState = new PausedSessionState(this.debugger, this.runtime, this.session, stackFrames);
+        this.sessionState = new PausedDebugSessionState(this.debugger, this.runtime, this.session, stackFrames);
 
         this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
     }
 
     private async onResumed() {
-        this.sessionState = new NormalSessionState();
+        this.sessionState = new RunningDebugSessionState();
     }
 
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {

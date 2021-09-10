@@ -6,7 +6,8 @@ import {
 } from 'vscode-debugadapter';
 import { launch, LaunchedChrome } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
-import { DebugSessionManager, Variable, DebuggerCommand } from '../core/DebugSession'
+import { DebugSessionManager } from '../core/DebugSession'
+import { DebuggerCommand, Variable } from '../core/DebugCommand';
 import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
 
@@ -248,32 +249,12 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments) {
 
-		const locals: Variable[] = await this.session!.listVariable();
-		const globals: Variable[] = await this.session!.listGlobalVariable();
-		const vs = locals.concat(globals);
-
-		const variablesPromise = vs
-			.filter(x => x.name == args.expression)
-			.map(async x => {
-				const value = await this.session!.dumpVariable(x.name) || '???';
-
-				return {
-					name: x.name,
-					type: x.type,
-					value,
-					variablesReference: 0
-				};
-			});
-
-		const variables: DebugProtocol.Variable[] = await Promise.all(variablesPromise);
-
-		if (variables.length > 0) {
-			response.body = {
-				result: variables[0].value,
-				type: variables[0].type,
-				variablesReference: variables[0].variablesReference
-			};
-		} 
+		const value = await this.session!.dumpVariable(args.expression) || '???';
+	
+		response.body = {
+			result: value,
+			variablesReference: 0
+		};
 
 		this.sendResponse(response);
 	}

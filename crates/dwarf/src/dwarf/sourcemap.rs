@@ -223,12 +223,9 @@ impl DwarfSourceMap {
     pub fn find_address(&self, file: &LineInfo) -> Option<usize> {
         let escaped_filename = convert_from_windows_stype_path(&file.filepath);
         let escaped_filename = normalize_path(&escaped_filename);
-        console_log!("{}", escaped_filename);
-        console_log!("- - -");
         let line_vec = match self
             .file_sorted_rows
             .binary_search_by(|i| { 
-                console_log!("{}", i.0);
                 i.0.cmp(&escaped_filename)
             })
         {

@@ -1,4 +1,4 @@
-# cdp-gdb-bridge
+# WebAssembly on Chrome　Debugger
 
 WebAssembly on Chrome cli debugger & vscode extension
 
