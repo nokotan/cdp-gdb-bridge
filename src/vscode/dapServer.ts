@@ -229,7 +229,14 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				value,
 				variablesReference: 0
 			};
-		});
+		}).map((x, i) => x.catch(e => { 
+			return {
+				name: vs[i].name,
+				type: 'evaluation failed!',
+				value: e.message ? e.message : 'unknown',
+				variablesReference: 0
+			}	
+		}));
 
 		const variables: DebugProtocol.Variable[] = await Promise.all(variablesPromise);
 

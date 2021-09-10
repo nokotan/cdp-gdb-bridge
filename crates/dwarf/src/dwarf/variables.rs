@@ -247,6 +247,7 @@ pub fn evaluate_variable_from_string(
         }
     };
     let mut calculated_address = Vec::new();
+    let mut constant_data = None;
 
     for content in &var.contents {
 
@@ -276,7 +277,9 @@ pub fn evaluate_variable_from_string(
                 },
                 _ => panic!(),
             },
-            VariableExpression::ConstValue(ref _bytes) => unimplemented!(),
+            VariableExpression::ConstValue(ref _bytes) => {
+                constant_data = Some(_bytes.clone());
+            },
             VariableExpression::Pointer => {
                 calculated_address.push(VariableLocation::Pointer);
             },
@@ -290,7 +293,7 @@ pub fn evaluate_variable_from_string(
         let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
         let root = tree.root()?;
         
-        return match create_variable_info(root, calculated_address, &dwarf, &unit) {
+        return match create_variable_info(root, calculated_address, constant_data, &dwarf, &unit) {
             Ok(x) => Ok(Some(x)),
             Err(_) => Ok(None)
         };    
@@ -336,9 +339,12 @@ fn evaluate_variable_location<R: gimli::Reader>(
 fn create_variable_info<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
     address: Vec<VariableLocation>,
+    const_data: Option<Vec<u8>>,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R>,
 ) -> Result<VariableInfo> {
+    let data = const_data.unwrap_or(Vec::new());
+    
     match node.entry().tag() {
         gimli::DW_TAG_base_type => {
             let entry = node.entry();
@@ -364,7 +370,7 @@ fn create_variable_info<R: gimli::Reader>(
                 name,
                 encoding,
                 tag: gimli::DW_TAG_base_type,
-                memory_slice: MemorySlice::new(),
+                memory_slice: MemorySlice::from_u8_vec(data),
                 state: VariableEvaluationResult::Ready
             })
         }
@@ -404,7 +410,7 @@ fn create_variable_info<R: gimli::Reader>(
                 name: format!("{} {{ {} }}", type_name, members.join(", ")),
                 encoding: gimli::DW_ATE_signed,
                 tag,
-                memory_slice: MemorySlice::new(),
+                memory_slice: MemorySlice::from_u8_vec(data),
                 state: VariableEvaluationResult::Ready
             })
         },
@@ -414,7 +420,7 @@ fn create_variable_info<R: gimli::Reader>(
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
 
-                    create_variable_info(root, address, dwarf, unit)
+                    create_variable_info(root, address, Some(data), dwarf, unit)
                 },
                 _ => Err(anyhow!("unsupported DIE type"))
             }

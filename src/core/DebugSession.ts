@@ -54,6 +54,7 @@ interface RuntimeStackFrame {
     frame: Protocol.Debugger.CallFrame;
     stack: IRuntimeStackFrame;
     state?: WebAssemblyDebugState;
+    statePromise?: Promise<WebAssemblyDebugState>;
 } 
 
 class DebugSession {
@@ -315,7 +316,11 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         const frame = this.stackFrames[this.selectedFrameIndex];
 
         if (!frame.state) {
-            frame.state = await this.createWasmValueStore(frame.frame);
+            if (!frame.statePromise) {
+                frame.statePromise = this.createWasmValueStore(frame.frame);
+            }
+            
+            frame.state = await frame.statePromise;
         }
 
         const wasmVariable = this.debugSession.getVariableValue(expr, frame.stack.instruction!, frame.state);
@@ -326,12 +331,15 @@ class PausedSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand
         }
 
         let evaluationResult = wasmVariable.evaluate() || '<failure>';
+        let limit = 0;
 
-        while (wasmVariable.is_required_memory_slice()) { 
+        while (wasmVariable.is_required_memory_slice() && limit < 20) { 
             const slice = wasmVariable.required_memory_slice();
             const result = await this.evaluateMemory(slice.address, slice.byte_size);
             slice.set_memory_slice(new Uint8Array(result));
             evaluationResult = wasmVariable.resume_with_memory_slice(slice) || evaluationResult;
+
+            limit++;
         }
 
         return evaluationResult;

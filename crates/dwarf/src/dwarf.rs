@@ -194,6 +194,14 @@ impl MemorySlice {
         }
     }
 
+    pub(crate) fn from_u8_vec(data: Vec<u8>) -> Self {
+        Self {
+            address: 0,
+            byte_size: data.len(),
+            memory_slice: data
+        }
+    }
+
     pub fn set_memory_slice(&mut self, data: &[u8]) {
         self.memory_slice = data.to_vec();
     }

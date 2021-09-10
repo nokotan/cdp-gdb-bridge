@@ -43,7 +43,7 @@ pub fn format_object(
                         _ => unimplemented!()
                     }
                 }
-                _ => unimplemented!(),
+                other => Err(anyhow!(format!("unsupported attribute type: {}", other))),
             }
         }
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
