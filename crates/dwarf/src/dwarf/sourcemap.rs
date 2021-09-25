@@ -61,6 +61,9 @@ pub fn transform_debug_line(
 
     let sequence_base_index: usize;
     let mut dirs = vec![];
+    let mut files = Vec::new();
+    let mut file_sorted_rows = BTreeMap::new();
+    
     if header.version() <= 4 {
         dirs.push("./".to_string());
         sequence_base_index = 1;
@@ -72,8 +75,29 @@ pub fn transform_debug_line(
         dirs.push(clone_string_attribute(dwarf, unit, dir.clone()).expect("parsable dir string"));
     }
 
-    let mut files = Vec::new();
-    let mut file_sorted_rows = BTreeMap::new();
+    if header.version() <= 4 {
+        let file_entry = header.file(0).unwrap();
+        let dir = dirs[file_entry.directory_index() as usize].clone();
+        let dir = convert_from_windows_stype_path(&dir);
+
+        let dir_path = Path::new(&dir);
+        let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
+        let mut path = dir_path.join(convert_from_windows_stype_path(&path));
+
+        if !is_absolute_path(&path.to_str().unwrap_or("")) {
+            if let Some(comp_dir) = unit.comp_dir.clone() {
+                let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
+                let comp_dir = convert_from_windows_stype_path(&comp_dir);
+                path = Path::new(&comp_dir).join(path);
+            }
+        }
+        
+        files.push(
+            PathBuf::from(&normalize_path(&path.to_string_lossy().into_owned()))
+        );
+        file_sorted_rows.insert(0, BTreeMap::new());
+    }
+
     for (file_index, file_entry) in header.file_names().iter().enumerate() {
         let dir = dirs[file_entry.directory_index() as usize].clone();
         let dir = convert_from_windows_stype_path(&dir);
@@ -93,7 +117,7 @@ pub fn transform_debug_line(
         files.push(
             PathBuf::from(&normalize_path(&path.to_string_lossy().into_owned()))
         );
-        file_sorted_rows.insert(file_index, BTreeMap::new());
+        file_sorted_rows.insert(file_index + sequence_base_index, BTreeMap::new());
     }
 
     let mut rows = program.rows();
@@ -121,8 +145,7 @@ pub fn transform_debug_line(
     Ok(DwarfUnitSourceMap {
         address_sorted_rows: sorted_rows,
         file_sorted_rows: mapped_file_sorted_rows,
-        paths: files,
-        sequence_base_index,
+        paths: files
     })
 }
 
@@ -130,15 +153,10 @@ pub struct DwarfUnitSourceMap {
     address_sorted_rows: Vec<(u64, LineRow)>,
     file_sorted_rows: Vec<(usize, Vec<(u64, LineRow)>)>,
     paths: Vec<std::path::PathBuf>,
-    sequence_base_index: usize,
 }
 
-fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>, sequence_base_index: usize) -> LineInfo {
-    // if (row.file_index() as usize) < sequence_base_index {
-    //     console_log!("minus lineinfo! {}, {}", row.file_index() as usize, sequence_base_index);
-    // }
-
-    let filepath = paths[row.file_index() as usize - sequence_base_index].clone();
+fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>) -> LineInfo {
+    let filepath = paths[row.file_index() as usize].clone();
     LineInfo {
         filepath: filepath.to_str().unwrap().to_string(),
         line: Some(row.line().unwrap().get()),
@@ -148,13 +166,8 @@ fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>, sequence_b
         },
     }
 }
-fn transform_file_index(file_index: usize, paths: &Vec<std::path::PathBuf>, sequence_base_index: usize) -> String {
-    if file_index < sequence_base_index {
-        // console_log!("minus file_index! {}, {}", file_index, sequence_base_index);
-        return String::from("??? (invalid index)");
-    }
-
-    match paths.get(file_index as usize - sequence_base_index) {
+fn transform_file_index(file_index: usize, paths: &Vec<std::path::PathBuf>) -> String {
+    match paths.get(file_index as usize) {
         Some(x) => { 
             match x.clone().to_str() {
                 Some(x) => x.to_string(),
@@ -178,14 +191,13 @@ impl DwarfSourceMap {
         let mut file_rows = BTreeMap::new();
         for unit in units {
             let path = unit.paths;
-            let base_index = unit.sequence_base_index;
 
             for (addr, row) in &unit.address_sorted_rows {
-                let line_info = transform_lineinfo(&row, &path, base_index);
+                let line_info = transform_lineinfo(&row, &path);
                 address_rows.insert(*addr, line_info);
             }
             for (file_index, vec) in unit.file_sorted_rows {
-                let file_name = transform_file_index(file_index, &path, base_index);
+                let file_name = transform_file_index(file_index, &path);
                 file_rows.insert(file_name, vec);
             }
         }
