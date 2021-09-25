@@ -20,7 +20,7 @@ import { VSCodeDebugSession } from './dapServer';
  */
 
 // first parse command line arguments to see whether the debug adapter should run as a server
-let port = 3222;
+let port = 0;
 const args = process.argv.slice(2);
 args.forEach(function (val, index, array) {
 	const portMatch = /^--server=(\d{4,5})$/.exec(val);

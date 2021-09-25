@@ -1,7 +1,7 @@
 {
   "name": "cdp-gdb-bridge",
   "displayName": "WebAssembly on Chrome Debugger",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "WebAssembly on Chrome cli debugger & vscode extension",
   "author": "kamenokonokotan",
   "publisher": "kamenokosoft",
@@ -18,7 +18,7 @@
     "run": "node dist/cli/index.js",
     "vscode:clean": "rm packed/* || true",
     "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
-    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServer"
+    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServerLauncher"
   },
   "bin": {
     "cdp-gdb-bridge": "dist/cli/index.js"
@@ -32,8 +32,10 @@
     "Debuggers"
   ],
   "dependencies": {
+    "bufferutil": "^4.0.3",
     "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
+    "utf-8-validate": "^5.0.5",
     "vscode-debugadapter": "^1.48.0",
     "wabt": "^1.0.24"
   },
@@ -64,7 +66,7 @@
           "webassembly"
         ],
         "label": "WebAssembly Debug",
-        "program": "./packed/dapServer.js",
+        "program": "./packed/dapServerLauncher.js",
         "runtime": "node",
         "configurationAttributes": {
           "launch": {

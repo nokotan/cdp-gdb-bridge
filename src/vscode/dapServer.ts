@@ -24,7 +24,7 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 
 export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdapter {
 
-    private session?: DebuggerCommand;
+    private session: DebugSessionManager;
 
 	private client?: CDP.Client;
 
@@ -34,6 +34,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
     constructor() {
         super();
+
+		this.session = new DebugSessionManager(this);
     }
 
 	private onTerminated() {
@@ -53,6 +55,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		response.body.supportsEvaluateForHovers = true;
 
         this.sendResponse(response);
+		this.sendEvent(new InitializedEvent());
     }
 
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
@@ -73,11 +76,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         await Page.enable();
         await Runtime.enable();
 
-        this.session = new DebugSessionManager(Debugger, Page, Runtime, this);
+		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 		this.session.jumpToPage(args.url);
 
 		this.sendResponse(response);
-		this.sendEvent(new InitializedEvent());
 	}
 
 	protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
@@ -85,12 +87,12 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const path = args.source.path as string;
 		const clientLines = args.lines || [];
 
-		await this.session?.removeAllBreakPoints(path);
+		await this.session.removeAllBreakPoints(path);
 
 		// set and verify breakpoint locations
 		const actualBreakpoints0 = clientLines.map(async l => {
 			const fileSpec = `${path}:${l}`
-			const { verified, line, id } = await this.session?.setBreakPoint(fileSpec)!;
+			const { verified, line, id } = await this.session.setBreakPoint(fileSpec)!;
 			const bp = new Breakpoint(verified, line) as DebugProtocol.Breakpoint;
 			bp.id= id;
 			return bp;
@@ -107,7 +109,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	protected async breakpointLocationsRequest(response: DebugProtocol.BreakpointLocationsResponse, args: DebugProtocol.BreakpointLocationsArguments, request?: DebugProtocol.Request) {
 
 		if (args.source.path) {
-			const bps = await this.session!.getBreakPointsList(`${args.source.path}:${args.line}`);
+			const bps = await this.session.getBreakPointsList(`${args.source.path}:${args.line}`);
 			response.body = {
 				breakpoints: bps.map(col => {
 					return {
@@ -136,22 +138,22 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
     protected stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
-		this.session?.stepIn();
+		this.session.stepIn();
 		this.sendResponse(response);
 	}
 
 	protected stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
-		this.session?.stepOut();
+		this.session.stepOut();
 		this.sendResponse(response);
 	}
 
 	protected nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
-		this.session?.stepOver();
+		this.session.stepOver();
 		this.sendResponse(response);
 	}
 
     protected continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
-		this.session?.continue();
+		this.session.continue();
 		this.sendResponse(response);
 	}
 
@@ -172,7 +174,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const maxLevels = typeof args.levels === 'number' ? args.levels : 1000;
 		const endFrame = startFrame + maxLevels;
 
-		const frames = await this.session!.getStackFrames();
+		const frames = await this.session.getStackFrames();
 		const framesSlice = frames.slice(startFrame, endFrame);
 
 		response.body = {
@@ -198,7 +200,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
 	protected async scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments) {
-		this.session!.setFocusedFrame(args.frameId);
+		this.session.setFocusedFrame(args.frameId);
 
 		response.body = {
 			scopes: [
@@ -216,13 +218,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const v = this._variableHandles.get(args.variablesReference);
 		
 		if (v === 'locals') {
-			vs = await this.session!.listVariable();
+			vs = await this.session.listVariable();
 		} else if (v === 'globals') {
-			vs = await this.session!.listGlobalVariable();
+			vs = await this.session.listGlobalVariable();
 		}
 
 		const variablesPromise = vs.map(async x => {
-			const value = await this.session!.dumpVariable(x.name) || '???';
+			const value = await this.session.dumpVariable(x.name) || '???';
 
 			return {
 				name: x.name,
@@ -249,7 +251,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected async evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments) {
 
-		const value = await this.session!.dumpVariable(args.expression) || '???';
+		const value = await this.session.dumpVariable(args.expression) || '???';
 	
 		response.body = {
 			result: value,

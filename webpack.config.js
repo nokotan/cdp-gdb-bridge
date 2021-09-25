@@ -53,5 +53,5 @@ const generateConfig = (target) => {
 };
 module.exports = [
   generateConfig('./src/vscode/extension.ts'),
-  generateConfig('./src/vscode/dapServer.ts')
+  generateConfig('./src/vscode/dapServerLauncher.ts')
 ];

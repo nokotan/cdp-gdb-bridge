@@ -32,7 +32,8 @@ async function main() {
         await Page.enable();
         await Runtime.enable();
 
-        const manager = new DebugSessionManager(Debugger, Page, Runtime, new DummyDebugAdapter());
+        const manager = new DebugSessionManager(new DummyDebugAdapter());
+        manager.setChromeDebuggerApi(Debugger, Page, Runtime);
         const commandReader = new CommandReader(manager);
 
         await commandReader.start();

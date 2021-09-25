@@ -94,10 +94,10 @@ export class DebugSession {
 }
 
 export class DebugSessionManager implements DebuggerCommand {
-    private session: DebugSession;
-    private debugger: ProtocolApi.DebuggerApi;
-    private page: ProtocolApi.PageApi;
-    private runtime: ProtocolApi.RuntimeApi;
+    private session?: DebugSession;
+    private debugger?: ProtocolApi.DebuggerApi;
+    private page?: ProtocolApi.PageApi;
+    private runtime?: ProtocolApi.RuntimeApi;
     private debugAdapter: DebugAdapter;
 
     private breakPoints: RuntimeBreakPoint[] = [];
@@ -106,19 +106,23 @@ export class DebugSessionManager implements DebuggerCommand {
 
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
 
-    constructor(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi, _debugAdapter: DebugAdapter) {
-        this.session = new DebugSession();
+    constructor(_debugAdapter: DebugAdapter) {
+        this.debugAdapter = _debugAdapter;
+      
+        this.sessionState = new RunningDebugSessionState();
+    }
+
+    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
         this.debugger = _debugger;
         this.page = _page;
         this.runtime = _runtime;
-        this.debugAdapter = _debugAdapter;
-
-        this.sessionState = new RunningDebugSessionState();
 
         this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
         this.debugger.on('paused', (e) => this.onPaused(e));
         this.debugger.on('resumed', () => this.onResumed());
         this.page.on('loadEventFired', (e) => this.onLoad(e));
+
+        this.session = new DebugSession();
     }
 
     async stepOver() {
@@ -171,16 +175,27 @@ export class DebugSessionManager implements DebuggerCommand {
 
         const debugline = Number(fileInfo.pop());
         const debugfilename = fileInfo.join(":");
-
-        const wasmLocation = this.session.findAddressFromFileLocation(debugfilename, debugline);
         const bpID =
             this.breakPoints.length > 0
             ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1
             : 1;
 
-        if (!wasmLocation) {
-            console.log("cannot find address of specified file");
+        if (!this.session)
+        {
+            const bpInfo = {
+                id: bpID,
+                file: debugfilename,
+                line: debugline,
+                verified: false
+            };
 
+            this.breakPoints.push(bpInfo);
+            return bpInfo;
+        }
+
+        const wasmLocation = this.session.findAddressFromFileLocation(debugfilename, debugline);
+       
+        if (!wasmLocation) {
             const bpInfo = {
                 id: bpID,
                 file: debugfilename,
@@ -198,7 +213,7 @@ export class DebugSessionManager implements DebuggerCommand {
             columnNumber: wasmLocation.column
         };
 
-        const bp = await this.debugger.setBreakpoint({ 
+        const bp = await this.debugger!.setBreakpoint({ 
             location: wasmDebuggerLocation
         });
 
@@ -218,7 +233,7 @@ export class DebugSessionManager implements DebuggerCommand {
 
     async updateBreakPoint() {
         const promises = this.breakPoints.filter(x => !x.verified).map(async bpInfo => {
-            const wasmLocation = this.session.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
+            const wasmLocation = this.session!.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
     
             if (!wasmLocation) {
                 console.log("cannot find address of specified file");
@@ -231,11 +246,11 @@ export class DebugSessionManager implements DebuggerCommand {
                 columnNumber: wasmLocation.column
             };
     
-            const bp = await this.debugger.setBreakpoint({ 
+            const bp = await this.debugger!.setBreakpoint({ 
                 location: wasmDebuggerLocation
             });
     
-            const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
+            const correspondingLocation = this.session!.findFileFromLocation(wasmDebuggerLocation)!;
 
             bpInfo.file = correspondingLocation.file();
             bpInfo.line = correspondingLocation.line!;
@@ -257,7 +272,7 @@ export class DebugSessionManager implements DebuggerCommand {
             .filter(x => x.id == id)
             .filter(x => !!x.rawId)
             .map(async x => {
-                await this.debugger.removeBreakpoint({
+                await this.debugger?.removeBreakpoint({
                     breakpointId: x.rawId!
                 })
             })
@@ -271,7 +286,7 @@ export class DebugSessionManager implements DebuggerCommand {
             .filter(x => x.file == path)
             .filter(x => !!x.rawId)
             .map(async x => {
-                await this.debugger.removeBreakpoint({
+                await this.debugger?.removeBreakpoint({
                     breakpointId: x.rawId!
                 })
             });
@@ -302,7 +317,7 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     async jumpToPage(url: string) {
-        this.page.navigate({
+        this.page?.navigate({
             url
         });
     }
@@ -313,11 +328,11 @@ export class DebugSessionManager implements DebuggerCommand {
         if (e.scriptLanguage == "WebAssembly") {
             console.log(`Start Loading ${e.url}...`);
 
-            const response = await this.debugger.getScriptSource({ scriptId: e.scriptId });
+            const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
             const buffer = Buffer.from(response?.bytecode!, 'base64');
 
             const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
-            this.session.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
+            this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
             console.log(`Finish Loading ${e.url}`);
 
@@ -329,7 +344,7 @@ export class DebugSessionManager implements DebuggerCommand {
         console.log("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
-            const dwarfLocation = this.session.findFileFromLocation(v.location);
+            const dwarfLocation = this.session!.findFileFromLocation(v.location);
 
             return {
                 frame: v,
@@ -343,7 +358,7 @@ export class DebugSessionManager implements DebuggerCommand {
             };
         });
 
-        this.sessionState = new PausedDebugSessionState(this.debugger, this.runtime, this.session, stackFrames);
+        this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
 
         this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
     }
@@ -355,6 +370,6 @@ export class DebugSessionManager implements DebuggerCommand {
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
         console.log('Page navigated.');
         this.breakPoints = [];
-        this.session.reset();
+        this.session!.reset();
     }
 }
