@@ -76,25 +76,24 @@ pub fn transform_debug_line(
     }
 
     if header.version() <= 4 {
-        let file_entry = header.file(0).unwrap();
-        let dir = dirs[file_entry.directory_index() as usize].clone();
-        let dir = convert_from_windows_stype_path(&dir);
+        let folder_name = match root.attr_value(gimli::DW_AT_comp_dir)? {
+            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+            None => String::from("")
+        };
 
-        let dir_path = Path::new(&dir);
-        let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
-        let mut path = dir_path.join(convert_from_windows_stype_path(&path));
+        let file_name = match root.attr_value(gimli::DW_AT_name)? {
+            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+            None => String::from("unknown")
+        };
 
-        if !is_absolute_path(&path.to_str().unwrap_or("")) {
-            if let Some(comp_dir) = unit.comp_dir.clone() {
-                let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
-                let comp_dir = convert_from_windows_stype_path(&comp_dir);
-                path = Path::new(&comp_dir).join(path);
-            }
-        }
-        
-        files.push(
-            PathBuf::from(&normalize_path(&path.to_string_lossy().into_owned()))
-        );
+        let path = match is_absolute_path(&file_name) {
+            true => file_name,
+            false => format!("{}/{}", folder_name, file_name)
+        };
+        let path = convert_from_windows_stype_path(&path);
+        let path = normalize_path(&path);
+       
+        files.push(PathBuf::from(&path));
         file_sorted_rows.insert(0, BTreeMap::new());
     }
 

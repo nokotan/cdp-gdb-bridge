@@ -43,7 +43,7 @@ pub(crate) fn normalize_path(
             ".." => {
                 stack.pop();
             },
-            "." | "" => {
+            "." => {
                 // nothing to do
             }
             other => {
