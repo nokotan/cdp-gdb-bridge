@@ -266,6 +266,6 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
 	private formatAddress(x: number, pad = 8) {
-		return '0x' + x.toString(16).padStart(8, '0');
+		return '0x' + x.toString(16).padStart(pad, '0');
 	}
 }

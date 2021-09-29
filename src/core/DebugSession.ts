@@ -369,7 +369,7 @@ export class DebugSessionManager implements DebuggerCommand {
 
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
         console.log('Page navigated.');
-        this.breakPoints = [];
+        this.breakPoints.forEach(x => x.verified = false);
         this.session!.reset();
     }
 }
