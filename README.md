@@ -1,4 +1,4 @@
-# WebAssembly on Chrome　Debugger
+# WebAssembly on Chrome Debugger
 
 WebAssembly on Chrome cli debugger & vscode extension
 
@@ -49,4 +49,4 @@ Start Loading http://localhost:8080/index.wasm...
 ### Features
 
 - BreakPoints
-- Variable Dump (except for pointer)
+- Variable Dump
