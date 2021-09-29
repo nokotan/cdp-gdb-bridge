@@ -1,7 +1,7 @@
 {
   "name": "cdp-gdb-bridge",
   "displayName": "WebAssembly on Chrome Debugger",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "WebAssembly on Chrome cli debugger & vscode extension",
   "author": "kamenokonokotan",
   "publisher": "kamenokosoft",
