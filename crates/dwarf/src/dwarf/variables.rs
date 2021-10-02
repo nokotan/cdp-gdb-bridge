@@ -14,6 +14,8 @@ use super::wasm_bindings::{ WasmValueVector };
 pub struct VariableName {
     pub name: String,
     pub type_name: String,
+    pub group_id: i32,
+    pub child_group_id: Option<i32>,
 }
 
 pub struct SymbolVariable
@@ -21,6 +23,8 @@ pub struct SymbolVariable
     pub name: Option<String>,
     pub contents: Vec<VariableExpression>,
     pub ty_offset: Option<usize>,
+    pub group_id: i32,
+    pub child_group_id: Option<i32>,
 }
 
 #[derive(Clone)]
@@ -51,12 +55,14 @@ pub fn variables_in_unit_entry(
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
     entry_offset: Option<UnitOffset<DwarfReaderOffset>>,
-    code_offset: u64
+    code_offset: u64,
+    root_group_id: i32
 ) -> Result<Vec<SymbolVariable>> {
     let mut tree = unit.entries_tree(entry_offset)?;
     let root = tree.root()?;
     let mut variables = vec![];
-    variables_in_unit_entry_recursive(root, dwarf, unit, code_offset, &mut variables)?;
+    let mut root_group_id = root_group_id;
+    variables_in_unit_entry_recursive(root, dwarf, unit, code_offset, &mut variables, &mut root_group_id)?;
     Ok(variables)
 }
 
@@ -65,16 +71,27 @@ fn variables_in_unit_entry_recursive(
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
     code_offset: u64,
-    variables: &mut Vec<SymbolVariable>
+    variables: &mut Vec<SymbolVariable>,
+    group_id: &mut i32
 ) -> Result<()> {
 
     let mut children = node.children();
+    let current_group_id = *group_id;
+
+    if *group_id < 10000
+    {
+        *group_id = (*group_id - 1000 + 1) * 10000;
+    }
+    else
+    {
+        *group_id += 1;
+    }
 
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let mut var = transform_variable(&dwarf, &unit, child.entry())?;
-                structure_variable_recursive(child, dwarf, unit, &mut var, variables)?;
+                let mut var = transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
+                structure_variable_recursive(child, dwarf, unit, &mut var, variables, group_id)?;
                 variables.push(var);
             }
             gimli::DW_TAG_lexical_block => {
@@ -92,12 +109,12 @@ fn variables_in_unit_entry_recursive(
                     let code_range = low_pc..high_pc;
 
                     if code_range.contains(&code_offset) {
-                        variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables)?;
+                        variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, group_id)?;
                     }
                 }
             }
             gimli::DW_TAG_namespace => {
-                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables)?;
+                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, group_id)?;
             }
             _ => continue,
         }
@@ -110,17 +127,20 @@ fn structure_variable_recursive(
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader>,
     parent_variable: &mut SymbolVariable,
-    variables: &mut Vec<SymbolVariable>
+    variables: &mut Vec<SymbolVariable>,
+    group_id: &mut i32
 ) -> Result<()> {
-
     match node.entry().tag() {
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
             let mut children = node.children();
-
+            let current_group_id = *group_id;
+            parent_variable.child_group_id = Some(current_group_id);
+            *group_id += 1;
+            
             while let Some(child) = children.next()? {
                 match child.entry().tag() {
                     gimli::DW_TAG_member => {
-                        let mut var = transform_variable(&dwarf, &unit, child.entry())?;
+                        let mut var = transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
 
                         let mut contents = parent_variable.contents.clone();
                         contents.append(&mut var.contents);
@@ -132,13 +152,15 @@ fn structure_variable_recursive(
                                 var.name.unwrap_or("<unnamed>".to_string())
                             )),
                             contents,
-                            ty_offset: var.ty_offset
+                            ty_offset: var.ty_offset,
+                            group_id: var.group_id,
+                            child_group_id: var.child_group_id
                         };
 
                         if let Some(offset) = var.ty_offset {
                             let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
                             let root = tree.root()?;
-                            structure_variable_recursive(root, dwarf, unit, &mut var, variables)?;
+                            structure_variable_recursive(root, dwarf, unit, &mut var, variables, group_id)?;
                         }
                         
                         variables.push(var);
@@ -154,7 +176,7 @@ fn structure_variable_recursive(
                 if node.entry().offset() != *offset {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
-                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables)?;
+                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
                 }
             } 
         },
@@ -163,7 +185,7 @@ fn structure_variable_recursive(
                 if node.entry().offset() != *offset {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
-                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables)?;
+                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
                 }
             } 
         }
@@ -176,6 +198,7 @@ fn transform_variable(
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader, DwarfReaderOffset>,
     entry: &DebuggingInformationEntry<DwarfReader>,
+    group_id: i32,
 ) -> Result<SymbolVariable> {
     let mut content = VariableExpression::Unknown {
         debug_info: "".to_string(), //format!("{:?}", entry.attrs()),
@@ -218,7 +241,9 @@ fn transform_variable(
     Ok(SymbolVariable {
         name,
         contents: vec![ content ],
-        ty_offset: ty
+        ty_offset: ty,
+        group_id,
+        child_group_id: None
     })
 }
 
@@ -438,7 +463,7 @@ pub struct DwarfGlobalVariables {
 }
 
 impl DwarfGlobalVariables {
-    pub fn variable_name_list(&self, unit_offset: UnitSectionOffset) -> Result<Vec<VariableName>> {
+    pub fn variable_name_list(&self, unit_offset: UnitSectionOffset, root_id: i32) -> Result<Vec<VariableName>> {
         let dwarf = parse_dwarf(&self.buffer)?;
         let header = match header_from_offset(&dwarf, unit_offset)? {
             Some(header) => header,
@@ -448,12 +473,14 @@ impl DwarfGlobalVariables {
         };
 
         let unit = dwarf.unit(header)?;
-        let variables = variables_in_unit_entry(&dwarf, &unit, None, 0)?;
+        let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, root_id)?;
         let list = variables.iter()
             .map(|var| {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
+                    group_id: var.group_id,
+                    child_group_id: var.child_group_id
                 };
                 if let Some(name) = var.name.clone() {
                     v.name = name;
@@ -483,7 +510,7 @@ impl DwarfGlobalVariables {
         };
 
         let unit = dwarf.unit(header)?;
-        let variables = variables_in_unit_entry(&dwarf, &unit, None, 0)?;
+        let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, 0)?;
 
         evaluate_variable_from_string(name, &variables, &dwarf, &unit, frame_base)
     }

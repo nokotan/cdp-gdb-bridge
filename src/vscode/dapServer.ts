@@ -218,9 +218,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const v = this._variableHandles.get(args.variablesReference);
 		
 		if (v === 'locals') {
-			vs = await this.session.listVariable();
+			vs = await this.session.listVariable(1000);
 		} else if (v === 'globals') {
-			vs = await this.session.listGlobalVariable();
+			vs = await this.session.listGlobalVariable(1001);
+		} else if (args.variablesReference < 20000) {
+			vs = await this.session.listVariable(args.variablesReference);
+		} else if (args.variablesReference < 30000) {
+			vs = await this.session.listGlobalVariable(args.variablesReference);
 		}
 
 		const variablesPromise = vs.map(async x => {
@@ -230,7 +234,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				name: x.name,
 				type: x.type,
 				value,
-				variablesReference: 0
+				variablesReference: x.childGroupId || 0
 			};
 		}).map((x, i) => x.catch(e => { 
 			return {

@@ -135,4 +135,12 @@ impl VariableVector {
     pub fn at_type_name(&self, index: usize) -> String {
         self.data[index].type_name.clone()
     }
+
+    pub fn at_group_id(&self, index: usize) -> i32 {
+        self.data[index].group_id
+    }
+
+    pub fn at_chile_group_id(&self, index: usize) -> Option<i32> {
+        self.data[index].child_group_id
+    }
 }

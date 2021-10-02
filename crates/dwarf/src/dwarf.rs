@@ -279,32 +279,32 @@ impl VariableInfo {
 
     fn evaluate_internal(&mut self) {
         let mut address = 0;
-            let mut byte_size = self.byte_size;
+        let mut byte_size = self.byte_size;
 
-            while self.address_expr.len() != 0 {
-                match self.address_expr.remove(0) {
-                    VariableLocation::Address(addr) => { 
-                        address = addr; 
-                    }
-                    VariableLocation::Offset(off) => {
-                        address = (address as i64 + off) as u64 
-                    },
-                    VariableLocation::Pointer => {
-                        byte_size = 4;
-                        self.address_expr.insert(0, VariableLocation::Pointer);
-                        break;
-                    }
+        while self.address_expr.len() != 0 {
+            match self.address_expr.remove(0) {
+                VariableLocation::Address(addr) => { 
+                    address = addr; 
                 }
-            };
+                VariableLocation::Offset(off) => {
+                    address = (address as i64 + off) as u64 
+                },
+                VariableLocation::Pointer => {
+                    byte_size = 4;
+                    self.address_expr.insert(0, VariableLocation::Pointer);
+                    break;
+                }
+            }
+        };
 
-            let slice = MemorySlice {
-                address: address as usize,
-                byte_size,
-                memory_slice: Vec::new()
-            };
+        let slice = MemorySlice {
+            address: address as usize,
+            byte_size,
+            memory_slice: Vec::new()
+        };
 
-            self.memory_slice = slice.clone();
-            self.state = VariableEvaluationResult::RequireMemorySlice(slice);
+        self.memory_slice = slice.clone();
+        self.state = VariableEvaluationResult::RequireMemorySlice(slice);
     }
 
     pub fn is_required_memory_slice(&self) -> bool {

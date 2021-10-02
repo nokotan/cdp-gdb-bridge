@@ -153,12 +153,12 @@ export class DebugSessionManager implements DebuggerCommand {
         await this.sessionState.showLine();
     }
 
-    async listVariable() {
-        return await this.sessionState.listVariable();
+    async listVariable(variableReference?: number) {
+        return await this.sessionState.listVariable(variableReference);
     }
 
-    async listGlobalVariable() {
-        return await this.sessionState.listGlobalVariable();
+    async listGlobalVariable(variableReference?: number) {
+        return await this.sessionState.listGlobalVariable(variableReference);
     }
 
     async dumpVariable(expr: string) {

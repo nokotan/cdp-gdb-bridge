@@ -4,6 +4,7 @@ import { WasmValueVector } from "../../crates/dwarf/pkg";
 export interface Variable {
     name: string;
     type: string;
+    childGroupId?: number;
 }
 
 export interface IBreakPoint {
@@ -52,8 +53,8 @@ export interface DebuggerDumpCommand {
     showLine(): Promise<void>;
     getStackFrames(): Promise<IRuntimeStackFrame[]>;
     setFocusedFrame(index: number): Promise<void>;
-    listVariable(): Promise<Variable[]>;
-    listGlobalVariable(): Promise<Variable[]>;
+    listVariable(variableReference?: number): Promise<Variable[]>;
+    listGlobalVariable(variableReference?: number): Promise<Variable[]>;
     dumpVariable(expr: string): Promise<string | undefined>;
 }
 

@@ -170,7 +170,7 @@ impl DwarfSubroutineMap {
         }
     }
 
-    pub fn variable_name_list(&self, code_offset: usize) -> Result<Vec<VariableName>> {
+    pub fn variable_name_list(&self, code_offset: usize, group_id: i32) -> Result<Vec<VariableName>> {
         let offset = code_offset as u64;
         let subroutine = self.find_subroutine(code_offset)?;
         let dwarf = parse_dwarf(&self.buffer)?;
@@ -183,7 +183,7 @@ impl DwarfSubroutineMap {
 
         let unit = dwarf.unit(header)?;
         let entry_offset = subroutine.entry_offset;
-        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset)?;
+        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, group_id)?;
 
         Ok(variables
             .iter()
@@ -191,6 +191,8 @@ impl DwarfSubroutineMap {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
+                    group_id: var.group_id,
+                    child_group_id: var.child_group_id
                 };
                 if let Some(name) = var.name.clone() {
                     v.name = name;
@@ -225,7 +227,7 @@ impl DwarfSubroutineMap {
 
         let unit = dwarf.unit(header)?;
         let entry_offset = subroutine.entry_offset;
-        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset)?;
+        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, 0)?;
 
         evaluate_variable_from_string(name, &variables, &dwarf, &unit, frame_base)
     }

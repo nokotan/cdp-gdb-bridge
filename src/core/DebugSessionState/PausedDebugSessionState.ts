@@ -106,7 +106,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
         }
     }
 
-    async listVariable() {
+    async listVariable(variableReference?: number) {
         const frame = this.stackFrames[this.selectedFrameIndex];
         const varlist = this.debugSession.getVariablelistFromAddress(frame.stack.instruction!);
 
@@ -120,16 +120,27 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
         {
             const name = varlist.at_name(i);
             const type = varlist.at_type_name(i);
-
-            list.push({
-                name, type
-            })
+            const groupId = varlist.at_group_id(i);
+            const childGroupId = varlist.at_chile_group_id(i);
+            
+            if (!variableReference)
+            {
+                list.push({
+                    name, type, childGroupId
+                })
+            }
+            else if (variableReference == groupId)
+            {
+                list.push({
+                    name, type, childGroupId
+                })
+            }
         }
 
         return list;
     }
 
-    async listGlobalVariable() {
+    async listGlobalVariable(variableReference?: number) {
         const frame = this.stackFrames[this.selectedFrameIndex];
         const varlists = this.debugSession.getGlobalVariablelist(frame.stack.instruction!);
 
@@ -148,10 +159,21 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             {
                 const name = varlist.at_name(i);
                 const type = varlist.at_type_name(i);
-
-                list.push({
-                    name, type
-                })
+                const groupId = varlist.at_group_id(i);
+                const childGroupId = varlist.at_chile_group_id(i);
+                
+                if (!variableReference)
+                {
+                    list.push({
+                        name, type, childGroupId
+                    })
+                }
+                else if (variableReference == groupId)
+                {
+                    list.push({
+                        name, type, childGroupId
+                    })
+                }
             }
         }
 
