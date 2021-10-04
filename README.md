@@ -4,6 +4,12 @@ WebAssembly on Chrome cli debugger & vscode extension
 
 ## Command Line Interface
 
+### Install
+
+```sh
+npm i cdp-gdb-bridge
+```
+
 ### Usage
 
 ```sh
@@ -36,6 +42,10 @@ Start Loading http://localhost:8080/index.wasm...
 | p (VariableName) | Evaluate Variable |
 
 ## VSCode Extension
+
+### Install
+
+Visual Studio Marketplace: <https://marketplace.visualstudio.com/items?itemName=KamenokoSoft.cdp-gdb-bridge>
 
 ### Support Status
 
