@@ -84,7 +84,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected async setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): Promise<void> {
 
-		const path = args.source.path as string;
+		const path = (args.source.path as string).replace(/\\/g, "/");
 		const clientLines = args.lines || [];
 
 		await this.session.removeAllBreakPoints(path);
