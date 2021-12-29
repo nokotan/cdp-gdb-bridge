@@ -200,15 +200,14 @@ fn transform_variable(
     entry: &DebuggingInformationEntry<DwarfReader>,
     group_id: i32,
 ) -> Result<SymbolVariable> {
-    let mut content = VariableExpression::Unknown {
-        debug_info: "".to_string(), //format!("{:?}", entry.attrs()),
-    };
+    let mut content = None;
+
     let mut has_explicit_location = false;
     if let Some(location) = entry.attr_value(gimli::DW_AT_location)? {
-        content = VariableExpression::Location(location);
+        content = Some(VariableExpression::Location(location));
         has_explicit_location = true;
     } else if let Some(location) = entry.attr_value(gimli::DW_AT_data_member_location)? {
-        content = VariableExpression::Location(location);
+        content = Some(VariableExpression::Location(location));
         has_explicit_location = true;
     }
     if let Some(constant) = entry.attr_value(gimli::DW_AT_const_value)? {
@@ -225,7 +224,7 @@ fn transform_variable(
                 AttributeValue::String(b) => b.to_slice()?.to_vec(),
                 _ => unimplemented!(),
             };
-            content = VariableExpression::ConstValue(bytes);
+            content = Some(VariableExpression::ConstValue(bytes));
         }
     }
     let name = match entry.attr_value(gimli::DW_AT_name)? {
@@ -240,7 +239,10 @@ fn transform_variable(
 
     Ok(SymbolVariable {
         name,
-        contents: vec![ content ],
+        contents: match content {
+            Some(x) => vec![x],
+            None => vec![]
+        },
         ty_offset: ty,
         group_id,
         child_group_id: None
