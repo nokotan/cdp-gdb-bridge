@@ -22,7 +22,7 @@ pub struct SymbolVariable
 {
     pub name: Option<String>,
     pub contents: Vec<VariableExpression>,
-    pub ty_offset: Option<usize>,
+    pub ty_offset: TypeDescripter,
     pub group_id: i32,
     pub child_group_id: Option<i32>,
 }
@@ -40,6 +40,12 @@ pub enum VariableLocation {
     Address(u64),
     Offset(i64),
     Pointer
+}
+
+#[derive(Clone)]
+pub enum TypeDescripter {
+    TypeOffset(usize),
+    Description(String)
 }
 
 pub enum FrameBase {
@@ -114,7 +120,10 @@ fn variables_in_unit_entry_recursive(
                 }
             }
             gimli::DW_TAG_namespace => {
+                let mut var = transform_namespace(&dwarf, &unit, child.entry(), current_group_id)?;
+                var.child_group_id = Some(*group_id);
                 variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, group_id)?;
+                variables.push(var);
             }
             _ => continue,
         }
@@ -157,7 +166,7 @@ fn structure_variable_recursive(
                             child_group_id: var.child_group_id
                         };
 
-                        if let Some(offset) = var.ty_offset {
+                        if let TypeDescripter::TypeOffset(offset) = var.ty_offset {
                             let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
                             let root = tree.root()?;
                             structure_variable_recursive(root, dwarf, unit, &mut var, variables, group_id)?;
@@ -233,8 +242,8 @@ fn transform_variable(
     };
 
     let ty = match entry.attr_value(gimli::DW_AT_type)? {
-        Some(AttributeValue::UnitRef(ref offset)) => Some(offset.0),
-        _ => None,
+        Some(AttributeValue::UnitRef(ref offset)) => TypeDescripter::TypeOffset(offset.0),
+        _ => TypeDescripter::Description(String::from("<unnamed>")),
     };
 
     Ok(SymbolVariable {
@@ -244,6 +253,26 @@ fn transform_variable(
             None => vec![]
         },
         ty_offset: ty,
+        group_id,
+        child_group_id: None
+    })
+}
+
+fn transform_namespace(
+    dwarf: &gimli::Dwarf<DwarfReader>,
+    unit: &Unit<DwarfReader, DwarfReaderOffset>,
+    entry: &DebuggingInformationEntry<DwarfReader>,
+    group_id: i32,
+) -> Result<SymbolVariable> {
+    let name = match entry.attr_value(gimli::DW_AT_name)? {
+        Some(name_attr) => Some(clone_string_attribute(dwarf, unit, name_attr)?),
+        None => None,
+    };
+
+    Ok(SymbolVariable {
+        name,
+        contents: vec![],
+        ty_offset: TypeDescripter::Description(String::from("namespace")),
         group_id,
         child_group_id: None
     })
@@ -319,7 +348,7 @@ pub fn evaluate_variable_from_string(
         };        
     }
 
-    if let Some(offset) = var.ty_offset {
+    if let TypeDescripter::TypeOffset(offset) = var.ty_offset {
         let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
         let root = tree.root()?;
         
@@ -487,9 +516,17 @@ impl DwarfGlobalVariables {
                 if let Some(name) = var.name.clone() {
                     v.name = name;
                 }
-                if let Ok(ty_name) = unit_type_name(&dwarf, &unit, var.ty_offset) {
-                    v.type_name = ty_name;
+                match &var.ty_offset {
+                    TypeDescripter::TypeOffset(offset) => {
+                        if let Ok(ty_name) = unit_type_name(&dwarf, &unit, Some(*offset)) {
+                            v.type_name = ty_name;
+                        }
+                    },
+                    TypeDescripter::Description(desc) => {
+                        v.type_name = desc.clone();
+                    }
                 }
+                
                 v
             }).collect();
 

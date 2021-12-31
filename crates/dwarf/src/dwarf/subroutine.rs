@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
 use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name, log };
-use super::variables::{ FrameBase, VariableName, variables_in_unit_entry, evaluate_variable_from_string };
+use super::variables::{ FrameBase, VariableName, TypeDescripter, variables_in_unit_entry, evaluate_variable_from_string };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
 
@@ -197,8 +197,15 @@ impl DwarfSubroutineMap {
                 if let Some(name) = var.name.clone() {
                     v.name = name;
                 }
-                if let Ok(ty_name) = unit_type_name(&dwarf, &unit, var.ty_offset) {
-                    v.type_name = ty_name;
+                match &var.ty_offset {
+                    TypeDescripter::TypeOffset(offset) => {
+                        if let Ok(ty_name) = unit_type_name(&dwarf, &unit, Some(*offset)) {
+                            v.type_name = ty_name;
+                        }
+                    },
+                    TypeDescripter::Description(desc) => {
+                        v.type_name = desc.clone();
+                    }
                 }
                 v
             })
