@@ -9,6 +9,15 @@ export async function createWasmValueStore(runtime: ProtocolApi.RuntimeApi, data
     await Promise.all(
         data.map(async x => 
         {
+            if (x.value?.type == 'number') {
+                store.push(WasmValue.from_i32(Number(x.value!.value!)));
+                return;
+            }
+            else if (x.value?.type == 'bigint') {
+                store.push(WasmValue.from_i64(BigInt(x.value!.value!)));
+                return;
+            }
+
             const result = await runtime.getProperties({
                 objectId: x.value!.objectId!,
                 ownProperties: true

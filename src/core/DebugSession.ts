@@ -120,7 +120,7 @@ export class DebugSessionManager implements DebuggerCommand {
         this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
         this.debugger.on('paused', (e) => this.onPaused(e));
         this.debugger.on('resumed', () => this.onResumed());
-        this.page.on('loadEventFired', (e) => this.onLoad(e));
+        if (this.page) this.page.on('loadEventFired', (e) => this.onLoad(e));
 
         this.session = new DebugSession();
     }

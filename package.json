@@ -1,7 +1,7 @@
 {
   "name": "cdp-gdb-bridge",
   "displayName": "WebAssembly on Chrome Debugger",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "WebAssembly on Chrome cli debugger & vscode extension",
   "author": "kamenokonokotan",
   "publisher": "kamenokosoft",
@@ -18,7 +18,7 @@
     "run": "node dist/cli/index.js",
     "vscode:clean": "rm packed/* || true",
     "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
-    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServerLauncher"
+    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=development --config-name dapServerLauncher"
   },
   "bin": {
     "cdp-gdb-bridge": "dist/cli/index.js"
@@ -70,14 +70,35 @@
         "runtime": "node",
         "configurationAttributes": {
           "launch": {
-            "required": [
-              "url"
-            ],
             "properties": {
               "url": {
                 "type": "string",
                 "description": "path to inspected webpage.",
                 "default": "http://localhost:8080/"
+              },
+              "port": {
+                "type": "number",
+                "description": "debugged port.",
+                "default": 9222
+              },
+              "application": {
+                "type": "string",
+                "description": "debugged application. chrome or node",
+                "default": "chrome"
+              },
+              "node": {
+                "type": "string",
+                "description": "path to node.",
+                "default": "node"
+              }
+            }
+          },
+          "attach": {
+            "properties": {
+              "port": {
+                "type": "number",
+                "description": "debugged port.",
+                "default": 9222
               }
             }
           }
@@ -86,6 +107,7 @@
           {
             "type": "wasm",
             "request": "launch",
+            "application": "chrome",
             "name": "WebAssembly Debug",
             "url": "http://localhost:8080/"
           }
@@ -97,6 +119,7 @@
             "body": {
               "type": "wasm",
               "request": "launch",
+              "application": "chrome",
               "name": "WebAssembly Debug",
               "url": "http://localhost:8080/"
             }

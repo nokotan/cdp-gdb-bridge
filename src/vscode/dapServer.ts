@@ -10,6 +10,8 @@ import { DebugSessionManager } from '../core/DebugSession'
 import { DebuggerCommand, Variable } from '../core/DebugCommand';
 import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
+import { ChildProcess, spawn } from 'child_process';
+import { createConnection } from 'net';
 
 /**
  * This interface describes the mock-debug specific launch attributes
@@ -20,6 +22,12 @@ import { basename } from 'path'
 interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	/** An absolute path to the "program" to debug. */
 	url: string;
+
+	port: number;
+
+	application: 'chrome' | 'node';
+
+	node?: string;
 }
 
 export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdapter {
@@ -28,7 +36,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	private client?: CDP.Client;
 
-    private launchedBrowser?: LaunchedChrome;
+    private launchedBrowser?: ChildProcess;
 
 	private _variableHandles = new Handles<'locals' | 'globals'>();
 
@@ -58,25 +66,81 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.sendEvent(new InitializedEvent());
     }
 
-    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
-		this.launchedBrowser = await launch({
-        });
-
-		this.launchedBrowser.process.on('exit', () => this.onTerminated());
-
-        // connect to endpoint
-        this.client = await CDP({
-            port: this.launchedBrowser.port
+	protected async attachRequest(response: DebugProtocol.AttachResponse, args: ILaunchRequestArguments) {
+		// connect to endpoint
+		this.client = await CDP({
+            port: args.port
         });
 
         // extract domains
         const { Debugger, Page, Runtime } = this.client;
 
+		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+
         await Debugger.enable({});
-        await Page.enable();
+        if (Page) await Page.enable();
         await Runtime.enable();
 
+		this.sendResponse(response);
+	}
+
+    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
+		let port = args.port;
+	
+		switch (args.application) {
+			case 'chrome':
+				const launchedBrowser = await launch({
+				});
+				port = launchedBrowser.port;
+
+				this.launchedBrowser = launchedBrowser.process;
+				break;
+			case 'node':
+				const nodeExecitable = args.node || "node";
+				this.launchedBrowser = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.url}` ]);
+				this.launchedBrowser.on('exit', () => { console.log('Process Exited.') });
+				this.launchedBrowser.stdout?.on('data', (d: string) => { console.log(d.toString()) });
+				this.launchedBrowser.stderr?.on('data', (d: string) => { console.log(d.toString()) });
+				
+				await new Promise<void>((resolve, _) => {
+					setTimeout(resolve, 1000)
+				});
+
+				await new Promise<void>((resolve, reject) => {
+					const client = createConnection(port);
+					client.once('error', err => {
+						client.removeAllListeners();
+						client.end();
+						client.destroy();
+						client.unref();
+						reject(err);
+					});
+					client.once('connect', () => {
+						client.removeAllListeners();
+						client.end();
+						client.destroy();
+						client.unref();
+						resolve();
+					});
+				});
+		}		
+
+		this.launchedBrowser.on('exit', () => { this.onTerminated(); });
+		
+        // connect to endpoint
+        this.client = await CDP({
+            port
+        });
+
+        // extract domains
+        const { Debugger, Page, Runtime } = this.client;
+
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+
+        await Debugger.enable({});
+        if (Page) await Page.enable();
+        await Runtime.enable();
+		
 		this.session.jumpToPage(args.url);
 
 		this.sendResponse(response);
