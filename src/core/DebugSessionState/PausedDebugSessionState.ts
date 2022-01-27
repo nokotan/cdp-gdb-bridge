@@ -218,6 +218,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
                 objectId: frame.scopeChain.filter(x => x.type == "wasm-expression-stack")[0].object.objectId!,
             })).result;
 
+            // TODO: no longer needed for node v14.x?
             if (wasmStacks.length > 0 && wasmStacks[0].value!.objectId) {
                 wasmStacks = (await this.runtime.getProperties({
                     objectId: wasmStacks[0].value!.objectId!,
@@ -232,6 +233,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
                 objectId: frame.scopeChain.filter(x => x.type == "local")[0].object.objectId!,
             })).result;
 
+            // TODO: no longer needed for node v14.x?
             if (wasmLocalObject.length > 0 && wasmLocalObject[0].name == 'locals') {
                 wasmLocalObject = (await this.runtime.getProperties({ 
                     objectId: wasmLocalObject[0].value!.objectId!,

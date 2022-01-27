@@ -245,7 +245,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
 
-		// runtime supports no threads so just return a default thread.
+		// TODO: multithread support
 		response.body = {
 			threads: [
 				new Thread(1, "thread 1")

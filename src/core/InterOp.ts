@@ -9,6 +9,7 @@ export async function createWasmValueStore(runtime: ProtocolApi.RuntimeApi, data
     await Promise.all(
         data.map(async x => 
         {
+            // TODO: no longer needed? (node v14.x does not support memory dump on evaluateOnCallFrame)
             if (x.value?.type == 'number') {
                 store.push(WasmValue.from_i32(Number(x.value!.value!)));
                 return;
