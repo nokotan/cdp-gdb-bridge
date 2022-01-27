@@ -24,7 +24,7 @@ export async function createWasmValueStore(runtime: ProtocolApi.RuntimeApi, data
             });
 
             const type = result.result[0].value!.value;
-            // i64 is represented as BigInt in javascript, which is not unserializable.
+            // i64 is represented as BigInt in javascript, which is unserializable.
             // Instead of 'value' property, BigInt value is stored in unserializableValue as a format of '0n',
             // therefore we need to remove the last 'n' character to cast BigInt from string.
             const value = result.result[1].value!.value || result.result[1].value!.unserializableValue?.slice(0, -1);

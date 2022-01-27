@@ -1,30 +1,6 @@
 import * as vscode from 'vscode';
-import { VSCodeDebugSession } from './dapServer'
-import { CancellationToken, DebugAdapterDescriptor, DebugAdapterDescriptorFactory, DebugConfiguration, DebugConfigurationProvider, DebugSession, ProviderResult, WorkspaceFolder } from 'vscode';
-
-export interface FileAccessor {
-	readFile(path: string): Promise<string>;
-}
-
-export const workspaceFileAccessor: FileAccessor = {
-	async readFile(path: string) {
-		try {
-			const uri = vscode.Uri.file(path);
-			const bytes = await vscode.workspace.fs.readFile(uri);
-			const contents = Buffer.from(bytes).toString('utf8');
-			return contents;
-		} catch(e) {
-			try {
-				const uri = vscode.Uri.parse(path);
-				const bytes = await vscode.workspace.fs.readFile(uri);
-				const contents = Buffer.from(bytes).toString('utf8');
-				return contents;
-			} catch (e) {
-				return `cannot read '${path}'`;
-			}
-		}
-	}
-};
+import { ILaunchRequestArguments, VSCodeDebugSession } from './dapServer'
+import { CancellationToken, DebugConfiguration, DebugConfigurationProvider, ProviderResult, WorkspaceFolder } from 'vscode';
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 
@@ -37,18 +13,36 @@ class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory 
 	}
 }
 
-class MockConfigurationProvider implements DebugConfigurationProvider {
+type WebAssemblyDebugConfiguration = ILaunchRequestArguments & DebugConfiguration;
+
+class WebAssemblyChromeConfigurationProvider implements DebugConfigurationProvider {
 
 	/**
 	 * Massage a debug configuration just before a debug session is being launched,
 	 * e.g. add all missing attributes to the debug configuration.
 	 */
-	resolveDebugConfiguration(folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration> {
+	async resolveDebugConfiguration(folder: WorkspaceFolder | undefined, config: WebAssemblyDebugConfiguration, token?: CancellationToken) {
 
 		if (!config.url) {
-			return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
-				return undefined;	// abort launch
-			});
+			await vscode.window.showInformationMessage("Cannot find a url to debug");
+			return undefined;
+		}
+
+		return config;
+	}
+}
+
+class WebAssemblyNodeConfigurationProvider implements DebugConfigurationProvider {
+
+	/**
+	 * Massage a debug configuration just before a debug session is being launched,
+	 * e.g. add all missing attributes to the debug configuration.
+	 */
+	async resolveDebugConfiguration(folder: WorkspaceFolder | undefined, config: WebAssemblyDebugConfiguration, token?: CancellationToken) {
+
+		if (!config.program) {
+			await vscode.window.showInformationMessage("Cannot find a program to debug");
+			return undefined;
 		}
 
 		return config;
@@ -57,28 +51,22 @@ class MockConfigurationProvider implements DebugConfigurationProvider {
 
 export function activate(context: vscode.ExtensionContext) {
 
-	// register a configuration provider for 'mock' debug type
-	const provider = new MockConfigurationProvider();
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('wasm', provider));
+	// register a configuration provider for 'wasm' debug type
+	{
+		const provider = new WebAssemblyChromeConfigurationProvider();
+		context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('wasm-chrome', provider));
+	}
 
-	// register a dynamic configuration provider for 'mock' debug type
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('wasm', {
-		provideDebugConfigurations(folder: WorkspaceFolder | undefined): ProviderResult<DebugConfiguration[]> {
-			return [
-				{
-					name: "Dynamic Launch",
-					request: "launch",
-					type: "wasm",
-					url: "${file}"
-				}
-			];
-		}
-	}, vscode.DebugConfigurationProviderTriggerKind.Dynamic));
+	{
+		const provider = new WebAssemblyNodeConfigurationProvider();
+		context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('wasm-node', provider));
+	}
 
 	const factory = new InlineDebugAdapterFactory();
-	
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('wasm', factory));
-	// context.subscriptions.push(factory);
+
+	for (const type of [ 'wasm-chrome', 'wasm-node' ]) {
+		context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(type, factory));
+	}
 }
 
 export function deactivate() {

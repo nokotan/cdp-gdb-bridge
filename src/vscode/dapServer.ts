@@ -4,31 +4,47 @@ import {
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent,
 	InitializedEvent
 } from 'vscode-debugadapter';
-import { launch, LaunchedChrome } from 'chrome-launcher';
+import { launch } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
 import { DebugSessionManager } from '../core/DebugSession'
-import { DebuggerCommand, Variable } from '../core/DebugCommand';
+import { Variable } from '../core/DebugCommand';
 import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
 import { ChildProcess, spawn } from 'child_process';
 import { createConnection } from 'net';
 
 /**
- * This interface describes the mock-debug specific launch attributes
+ * This interface describes the wasm specific launch attributes
  * (which are not part of the Debug Adapter Protocol).
- * The schema for these attributes lives in the package.json of the mock-debug extension.
+ * The schema for these attributes lives in the package.json of the wasm extension.
  * The interface should always match this schema.
  */
-interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
-	/** An absolute path to the "program" to debug. */
-	url: string;
+interface IChromeLaunchRequestArguments {
+	type: 'wasm-chrome';
 
-	port: number;
+	/** An absolute url to the "program" to debug. */
+	url?: string;
 
-	application: 'chrome' | 'node';
+	port?: number;
+}
 
+interface INodeLaunchRequestArguments {
+	type: 'wasm-node';
+	
+	/** An absolute url to the "program" to debug. */
+	program?: string;
+
+	port?: number;
+
+	/** An absolute url to the "program" to debug. */
 	node?: string;
 }
+
+export type ILaunchRequestArguments = IChromeLaunchRequestArguments | INodeLaunchRequestArguments;
+
+type LaunchRequestArgument = ILaunchRequestArguments & DebugProtocol.LaunchRequestArguments;
+
+
 
 export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdapter {
 
@@ -36,7 +52,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	private client?: CDP.Client;
 
-    private launchedBrowser?: ChildProcess;
+    private launchedProcess?: ChildProcess;
 
 	private _variableHandles = new Handles<'locals' | 'globals'>();
 
@@ -48,7 +64,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	private onTerminated() {
 		this.sendEvent(new TerminatedEvent());
-		this.launchedBrowser = undefined;
+		this.launchedProcess = undefined;
 	} 
 
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
@@ -66,7 +82,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.sendEvent(new InitializedEvent());
     }
 
-	protected async attachRequest(response: DebugProtocol.AttachResponse, args: ILaunchRequestArguments) {
+	protected async attachRequest(response: DebugProtocol.AttachResponse, args: LaunchRequestArgument) {
 		// connect to endpoint
 		this.client = await CDP({
             port: args.port
@@ -78,32 +94,37 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 
         await Debugger.enable({});
-        if (Page) await Page.enable();
         await Runtime.enable();
+
+		// nodejs don't have Page interface.
+        if (Page) await Page.enable();
 
 		this.sendResponse(response);
 	}
 
-    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
-		let port = args.port;
+    protected async launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArgument) {
+		const port = args.port || 9222;
 	
-		switch (args.application) {
-			case 'chrome':
-				const launchedBrowser = await launch({
+		switch (args.type) {
+			case 'wasm-chrome':
+				const launchedProcess = await launch({
+					startingUrl: args.url,
+					port: port
 				});
-				port = launchedBrowser.port;
 
-				this.launchedBrowser = launchedBrowser.process;
+				this.launchedProcess = launchedProcess.process;
 				break;
-			case 'node':
+			case 'wasm-node':
 				const nodeExecitable = args.node || "node";
-				this.launchedBrowser = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.url}` ]);
-				this.launchedBrowser.on('exit', () => { console.log('Process Exited.') });
-				this.launchedBrowser.stdout?.on('data', (d: string) => { console.log(d.toString()) });
-				this.launchedBrowser.stderr?.on('data', (d: string) => { console.log(d.toString()) });
+				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.program}` ]);
+				this.launchedProcess.on('exit', () => { console.log('Process Exited.') });
+				// TODO: forward launched process log messages to vscode
+				this.launchedProcess.stdout?.on('data', (d: Buffer) => { console.log(d.toString()) });
+				this.launchedProcess.stderr?.on('data', (d: Buffer) => { console.error(d.toString()) });
 				
+				// TODO: check if node process is launched.
 				await new Promise<void>((resolve, _) => {
-					setTimeout(resolve, 1000)
+					setTimeout(resolve, 200)
 				});
 
 				await new Promise<void>((resolve, reject) => {
@@ -123,9 +144,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 						resolve();
 					});
 				});
+				break;
 		}		
 
-		this.launchedBrowser.on('exit', () => { this.onTerminated(); });
+		this.launchedProcess.on('exit', () => { this.onTerminated(); });
 		
         // connect to endpoint
         this.client = await CDP({
@@ -138,10 +160,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 
         await Debugger.enable({});
-        if (Page) await Page.enable();
         await Runtime.enable();
-		
-		this.session.jumpToPage(args.url);
+
+		// nodejs don't have Page interface.
+        if (Page) await Page.enable();
 
 		this.sendResponse(response);
 	}
@@ -196,8 +218,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
             await this.client.close();
         }
 
-        if (this.launchedBrowser) {
-            await this.launchedBrowser.kill();
+        if (this.launchedProcess) {
+            await this.launchedProcess.kill();
         }
 	}
 

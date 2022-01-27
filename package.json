@@ -18,7 +18,7 @@
     "run": "node dist/cli/index.js",
     "vscode:clean": "rm packed/* || true",
     "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
-    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=development --config-name dapServerLauncher"
+    "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServerLauncher"
   },
   "bin": {
     "cdp-gdb-bridge": "dist/cli/index.js"
@@ -51,8 +51,8 @@
     "webpack-cli": "^4.8.0"
   },
   "activationEvents": [
-    "onDebugResolve:wasm",
-    "onDebugDynamicConfigurations:wasm"
+    "onDebugResolve:wasm-chrome",
+    "onDebugResolve:wasm-node"
   ],
   "engines": {
     "vscode": "^1.59.0"
@@ -61,15 +61,18 @@
   "contributes": {
     "debuggers": [
       {
-        "type": "wasm",
+        "type": "wasm-chrome",
         "languages": [
           "webassembly"
         ],
-        "label": "WebAssembly Debug",
+        "label": "WebAssembly Debug on Chrome",
         "program": "./packed/dapServerLauncher.js",
         "runtime": "node",
         "configurationAttributes": {
           "launch": {
+            "required": [
+              "url"
+            ],
             "properties": {
               "url": {
                 "type": "string",
@@ -80,12 +83,64 @@
                 "type": "number",
                 "description": "debugged port.",
                 "default": 9222
-              },
-              "application": {
+              }
+            }
+          },
+          "attach": {
+            "properties": {
+              "port": {
+                "type": "number",
+                "description": "debugged port.",
+                "default": 9222
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "wasm-chrome",
+            "request": "launch",
+            "name": "WebAssembly Debug on Chrome",
+            "url": "http://localhost:8080/"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "WebAssembly Debug on Chrome: Launch",
+            "description": "A new configuration for 'debugging' wasm.",
+            "body": {
+              "type": "wasm-chrome",
+              "request": "launch",
+              "name": "WebAssembly Debug",
+              "url": "http://localhost:8080/"
+            }
+          }
+        ]
+      },
+      {
+        "type": "wasm-node",
+        "languages": [
+          "webassembly"
+        ],
+        "label": "WebAssembly Debug on Node",
+        "program": "./packed/dapServerLauncher.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
                 "type": "string",
                 "description": "debugged application. chrome or node",
                 "default": "chrome"
               },
+              "port": {
+                "type": "number",
+                "description": "debugged port.",
+                "default": 9222
+              },     
               "node": {
                 "type": "string",
                 "description": "path to node.",
@@ -105,23 +160,21 @@
         },
         "initialConfigurations": [
           {
-            "type": "wasm",
+            "type": "wasm-node",
             "request": "launch",
-            "application": "chrome",
-            "name": "WebAssembly Debug",
-            "url": "http://localhost:8080/"
+            "name": "WebAssembly Debug on Node",
+            "program": "${workspaceFolder}/index.js"
           }
         ],
         "configurationSnippets": [
           {
-            "label": "WebAssembly Debug: Launch",
+            "label": "WebAssembly Debug on Node: Launch",
             "description": "A new configuration for 'debugging' wasm.",
             "body": {
-              "type": "wasm",
+              "type": "wasm-node",
               "request": "launch",
-              "application": "chrome",
-              "name": "WebAssembly Debug",
-              "url": "http://localhost:8080/"
+              "name": "WebAssembly Debug on Node",
+              "program": "${workspaceFolder}/index.js"
             }
           }
         ]
