@@ -66,7 +66,7 @@ export interface DebuggerWorkflowCommand {
 }
 
 export interface DebuggerOtherCommand {
-    setBreakPoint(location: string): Promise<IBreakPoint>;
+    setBreakPoint(location: FileLocation): Promise<IBreakPoint>;
     removeBreakPoint(id: number): Promise<void>;
     removeAllBreakPoints(path: string): Promise<void>;
     getBreakPointsList(location: string): Promise<IBreakPoint[]>;

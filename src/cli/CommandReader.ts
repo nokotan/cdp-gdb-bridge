@@ -98,7 +98,20 @@ export class CommandReader {
     }
 
     async setBreakPoint(location: string) {
-        const bp = await this.session.setBreakPoint(location);
+        const fileInfo = location.split(':');
+        
+        if (fileInfo.length < 2)
+        {
+            console.log('invalid file spec.\n')
+            return;
+        }
+
+        const debugline = Number(fileInfo.pop());
+        const debugfilename = fileInfo.join(":");
+        const bp = await this.session.setBreakPoint({
+            file: debugfilename,
+            line: debugline
+        });
         console.log(`Set Breakpoint: ${bp.id}`)
     }
 

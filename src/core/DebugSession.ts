@@ -6,7 +6,7 @@ import {
 import { WebAssemblyFile } from "./Source"
 import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
-import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint } from './DebugCommand';
+import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint, FileLocation } from './DebugCommand';
 import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
 import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
 
@@ -165,16 +165,9 @@ export class DebugSessionManager implements DebuggerCommand {
         return await this.sessionState.dumpVariable(expr);
     }
 
-    async setBreakPoint(location: string): Promise<IBreakPoint> {
-        const fileInfo = location.split(':');
-        
-        if (fileInfo.length < 2)
-        {
-            return { verified: false };
-        }
-
-        const debugline = Number(fileInfo.pop());
-        const debugfilename = fileInfo.join(":");
+    async setBreakPoint(location: FileLocation): Promise<IBreakPoint> {
+        const debugline = location.line;
+        const debugfilename = location.file;
         const bpID =
             this.breakPoints.length > 0
             ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1

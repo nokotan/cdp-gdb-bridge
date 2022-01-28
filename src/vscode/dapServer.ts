@@ -177,7 +177,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 		// set and verify breakpoint locations
 		const actualBreakpoints0 = clientLines.map(async l => {
-			const fileSpec = `${path}:${l}`
+			const fileSpec = {
+				file: path,
+				line: l
+			};
 			const { verified, line, id } = await this.session.setBreakPoint(fileSpec)!;
 			const bp = new Breakpoint(verified, line) as DebugProtocol.Breakpoint;
 			bp.id= id;
