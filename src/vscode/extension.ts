@@ -5,7 +5,7 @@ import { CancellationToken, DebugConfiguration, DebugConfigurationProvider, Prov
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
-		return new vscode.DebugAdapterInlineImplementation(new VSCodeDebugSession());
+		return new vscode.DebugAdapterInlineImplementation(new VSCodeDebugSession(vscode.debug.activeDebugConsole));
 	}
 
 	dispose() {

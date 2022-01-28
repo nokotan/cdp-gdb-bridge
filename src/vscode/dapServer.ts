@@ -2,7 +2,8 @@ import { DebugProtocol } from 'vscode-debugprotocol';
 import {
 	LoggingDebugSession,
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent,
-	InitializedEvent
+	InitializedEvent,
+	OutputEvent
 } from 'vscode-debugadapter';
 import { launch } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
@@ -40,6 +41,11 @@ interface INodeLaunchRequestArguments {
 	node?: string;
 }
 
+export interface Logger {
+	append(text: string): void;
+	appendLine(text: string): void;
+}
+
 export type ILaunchRequestArguments = IChromeLaunchRequestArguments | INodeLaunchRequestArguments;
 
 type LaunchRequestArgument = ILaunchRequestArguments & DebugProtocol.LaunchRequestArguments;
@@ -54,12 +60,15 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
     private launchedProcess?: ChildProcess;
 
+	private logger?: Logger; 
+
 	private _variableHandles = new Handles<'locals' | 'globals'>();
 
-    constructor() {
+    constructor(logger?: Logger) {
         super();
 
 		this.session = new DebugSessionManager(this);
+		this.logger = logger;
     }
 
 	private onTerminated() {
@@ -119,8 +128,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.program}` ]);
 				this.launchedProcess.on('exit', () => { console.log('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
-				this.launchedProcess.stdout?.on('data', (d: Buffer) => { console.log(d.toString()) });
-				this.launchedProcess.stderr?.on('data', (d: Buffer) => { console.error(d.toString()) });
+				this.launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
+				this.launchedProcess.stderr?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stderr')) });
 				
 				// TODO: check if node process is launched.
 				await new Promise<void>((resolve, _) => {
