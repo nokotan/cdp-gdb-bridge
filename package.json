@@ -11,13 +11,13 @@
   },
   "license": "MIT",
   "scripts": {
-    "clean": "rm -r dist/*",
+    "clean": "rm -r dist/* || true",
     "build": "tsc --module commonjs",
     "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
     "prepack": "npm run build-crate && npm run build && rm crates/dwarf/pkg/.gitignore",
     "run": "node dist/cli/index.js",
-    "vscode:clean": "rm packed/* || true",
-    "vscode:pack": "npm run vscode:clean && vsce package -o dist/",
+    "vscode:clean": "rm -r packed/* || true",
+    "vscode:pack": "npm run vscode:clean && cp README.md README.orig.md && cp Extension.md README.md && vsce package -o ./dist/ || cp README.orig.md README.md && rm README.orig.md",
     "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServerLauncher"
   },
   "bin": {
@@ -140,7 +140,7 @@
                 "type": "number",
                 "description": "debugged port.",
                 "default": 9222
-              },     
+              },
               "node": {
                 "type": "string",
                 "description": "path to node.",
