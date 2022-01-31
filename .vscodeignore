@@ -5,3 +5,4 @@ packed/*.map
 src
 dist
 webpack.config.js
+tests

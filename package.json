@@ -17,6 +17,7 @@
     "prepack": "npm run build-crate && npm run build && rm crates/dwarf/pkg/.gitignore && cp README.md README.orig.md && cp CLI.md README.md",
     "postpack": "cp README.orig.md README.md && rm README.orig.md",
     "run": "node dist/cli/index.js",
+    "test": "npm run build-crate && npm run build && jest -c jest.config.json",
     "vscode:clean": "rm -r packed/* || true",
     "vscode:pack": "npm run vscode:clean && cp README.md README.orig.md && cp Extension.md README.md && vsce package -o ./dist/ || cp README.orig.md README.md && rm README.orig.md",
     "vscode:prepublish": "webpack --mode=production --config-name extension && webpack --mode=production --config-name dapServerLauncher"
@@ -33,9 +34,12 @@
     "Debuggers"
   ],
   "dependencies": {
+    "@types/jest": "^27.4.0",
+    "@vscode/debugadapter-testsupport": "^1.51.0",
     "bufferutil": "^4.0.3",
     "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
+    "jest": "^27.4.7",
     "utf-8-validate": "^5.0.5",
     "vscode-debugadapter": "^1.48.0",
     "wabt": "^1.0.24"

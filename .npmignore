@@ -3,3 +3,4 @@
 /dist/**/*.map
 /dist/*.vsix
 /packed/**/*
+/tests

@@ -1,0 +1,8 @@
+{
+    "moduleFileExtensions": [
+      "js"
+    ],
+    "testMatch": [
+      "**/tests/**/**/**.spec.js"
+    ]
+}
