@@ -229,7 +229,7 @@ export class DebugSessionManager implements DebuggerCommand {
             const wasmLocation = this.session!.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
     
             if (!wasmLocation) {
-                console.log("cannot find address of specified file");
+                console.error("cannot find address of specified file");
                 return bpInfo;
             }
     
@@ -316,10 +316,10 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     private async onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
-        console.log(e.url);
+        console.error(e.url);
 
         if (e.scriptLanguage == "WebAssembly") {
-            console.log(`Start Loading ${e.url}...`);
+            console.error(`Start Loading ${e.url}...`);
 
             const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
             const buffer = Buffer.from(response?.bytecode!, 'base64');
@@ -327,14 +327,14 @@ export class DebugSessionManager implements DebuggerCommand {
             const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
             this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
-            console.log(`Finish Loading ${e.url}`);
+            console.error(`Finish Loading ${e.url}`);
 
             this.updateBreakPoint();
         }
     }
 
     private async onPaused(e: Protocol.Debugger.PausedEvent) {
-        console.log("Hit BreakPoint");
+        console.error("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
             const dwarfLocation = this.session!.findFileFromLocation(v.location);
@@ -361,7 +361,7 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
-        console.log('Page navigated.');
+        console.error('Page navigated.');
         this.breakPoints.forEach(x => x.verified = false);
         this.session!.reset();
     }

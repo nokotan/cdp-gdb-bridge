@@ -126,7 +126,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			case 'wasm-node':
 				const nodeExecitable = args.node || "node";
 				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.program}` ]);
-				this.launchedProcess.on('exit', () => { console.log('Process Exited.') });
+				this.launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				this.launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
 				this.launchedProcess.stderr?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stderr')) });
@@ -226,7 +226,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 	async shutdown() {
 		if (this.client) {
-            console.log('session closed.');
+            console.error('session closed.');
             await this.client.close();
         }
 

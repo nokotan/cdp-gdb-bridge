@@ -6,7 +6,7 @@ use std::rc::{Rc};
 
 mod dwarf;
 
-use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf, log };
+use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf, error };
 use crate::dwarf::wasm_bindings::{ 
     WasmLineInfo, WasmValueVector, VariableVector
 };

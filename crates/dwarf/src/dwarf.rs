@@ -35,14 +35,14 @@ extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
     // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
-    pub fn log(s: &str);
+    pub fn error(s: &str);
 }
 
 #[macro_export]
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (error(&format_args!($($t)*).to_string()))
 }
 
 pub type DwarfReader = EndianRcSlice<LittleEndian>;

@@ -101,7 +101,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             const endLine = Math.min(lines.length - 1, frame.stack.line + 10);
 
             for (let i = startLine; i <= endLine; i++) {
-                console.log((i + 1 == frame.stack.line ? '->' : '  ') + ` ${i + 1}  ${lines[i]}`);
+                console.error((i + 1 == frame.stack.line ? '->' : '  ') + ` ${i + 1}  ${lines[i]}`);
             }
         }
     }
