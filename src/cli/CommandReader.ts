@@ -3,12 +3,12 @@ import { createInterface } from 'readline';
 
 export class CommandReader {
     private session: DebuggerCommand;
-    private commandList: Map<string, Function>;
+    private commandList: Map<string, (args?: string | number) => void>;
 
     constructor(_session: DebuggerCommand) {
         this.session = _session;
 
-        this.commandList = new Map<string, Function>([
+        this.commandList = new Map<string, (args?:any) => void>([
             [ 'r', (url: string) => this.jumpToPage(url) ],
             [ 'c', () => this.continue() ],
             [ 'n', () => this.stepOver() ],
@@ -25,7 +25,7 @@ export class CommandReader {
 
     start(): Promise<void> {
         return new Promise(
-            (resolve, _) => {
+            (resolve) => {
                 const inputReader = createInterface({ input: process.stdin });
 
                 inputReader.on("line", line => {
@@ -94,7 +94,7 @@ export class CommandReader {
 
     async dumpVariable(expr: string) {
         const text = await this.session.dumpVariable(expr);
-        console.log(`${text}`)
+        console.log(text)
     }
 
     async setBreakPoint(location: string) {
@@ -112,7 +112,10 @@ export class CommandReader {
             file: debugfilename,
             line: debugline
         });
-        console.log(`Set Breakpoint: ${bp.id}`)
+
+        if (bp.id) {
+            console.log(`Set Breakpoint: ${bp.id}`)
+        }
     }
 
     async removeBreakPoint(id: number) {

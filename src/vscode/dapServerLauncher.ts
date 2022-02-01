@@ -47,7 +47,7 @@ if (port > 0) {
 	// start a single session that communicates via stdin/stdout
 	const session = new VSCodeDebugSession();
 	process.on('SIGTERM', () => {
-		session.shutdown();
+		void session.shutdown();
 	});
 	session.start(process.stdin, process.stdout);
 }

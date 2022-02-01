@@ -12,6 +12,7 @@
   "license": "MIT",
   "scripts": {
     "clean": "rm -r dist/* || true",
+    "lint": "eslint src/**/*.ts",
     "build": "tsc --module commonjs",
     "build-crate": "cd crates/dwarf && wasm-pack build --out-name index --target nodejs",
     "prepack": "npm run build-crate && npm run build && rm crates/dwarf/pkg/.gitignore && cp README.md README.orig.md && cp CLI.md README.md",
@@ -35,10 +36,13 @@
   ],
   "dependencies": {
     "@types/jest": "^27.4.0",
+    "@typescript-eslint/eslint-plugin": "^5.10.1",
+    "@typescript-eslint/parser": "^5.10.1",
     "@vscode/debugadapter-testsupport": "^1.51.0",
     "bufferutil": "^4.0.3",
     "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
+    "eslint": "^8.8.0",
     "jest": "^27.4.7",
     "utf-8-validate": "^5.0.5",
     "vscode-debugadapter": "^1.48.0",

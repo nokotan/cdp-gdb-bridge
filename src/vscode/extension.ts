@@ -7,10 +7,6 @@ class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession): ProviderResult<vscode.DebugAdapterDescriptor> {
 		return new vscode.DebugAdapterInlineImplementation(new VSCodeDebugSession(vscode.debug.activeDebugConsole));
 	}
-
-	dispose() {
-		
-	}
 }
 
 type WebAssemblyDebugConfiguration = ILaunchRequestArguments & DebugConfiguration;
@@ -70,5 +66,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    
+    // do nothing
 }

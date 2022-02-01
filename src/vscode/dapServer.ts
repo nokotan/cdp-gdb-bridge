@@ -115,7 +115,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const port = args.port || 9222;
 
 		switch (args.type) {
-			case 'wasm-chrome':
+			case 'wasm-chrome': {
 				const launchedProcess = await launch({
 					startingUrl: args.url,
 					port: port
@@ -123,20 +123,21 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 				this.launchedProcess = launchedProcess.process;
 				break;
-			case 'wasm-node':
+			}	
+			case 'wasm-node': {
 				const nodeExecitable = args.node || "node";
-				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, `${args.program}` ]);
+				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, args.program! ]);
 				this.launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				this.launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
-				this.launchedProcess.stderr?.on('data', async (d: Buffer) => { 
+				this.launchedProcess.stderr?.on('data', (d: Buffer) => { 
 					const text = d.toString();
 
 					this.sendEvent(new OutputEvent(text, 'stderr')) 
 
 					// FIXME
 					if (text == "Waiting for the debugger to disconnect...\n") {
-						await this.onTerminated();
+						void this.onTerminated();
 					}
 				});
 				
@@ -163,9 +164,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 					});
 				});
 				break;
+			}		
 		}		
 
-		this.launchedProcess?.on('exit', () => { this.onTerminated(); });
+		this.launchedProcess?.on('exit', () => { void this.onTerminated(); });
 		
         // connect to endpoint
         this.client = await CDP({
@@ -240,7 +242,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         }
 
         if (this.launchedProcess) {
-            await this.launchedProcess.kill();
+            this.launchedProcess.kill();
         }
 	}
 
@@ -249,23 +251,23 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		super.shutdown();
 	}
 
-    protected stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments): void {
-		this.session.stepIn();
+    protected async stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments) {
+		await this.session.stepIn();
 		this.sendResponse(response);
 	}
 
-	protected stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
-		this.session.stepOut();
+	protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments) {
+		await this.session.stepOut();
 		this.sendResponse(response);
 	}
 
-	protected nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments): void {
-		this.session.stepOver();
+	protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments) {
+		await this.session.stepOver();
 		this.sendResponse(response);
 	}
 
-    protected continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments): void {
-		this.session.continue();
+    protected async continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments) {
+		await this.session.continue();
 		this.sendResponse(response);
 	}
 
@@ -312,7 +314,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
 	protected async scopesRequest(response: DebugProtocol.ScopesResponse, args: DebugProtocol.ScopesArguments) {
-		this.session.setFocusedFrame(args.frameId);
+		await this.session.setFocusedFrame(args.frameId);
 
 		response.body = {
 			scopes: [
@@ -348,7 +350,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				value,
 				variablesReference: x.childGroupId || 0
 			};
-		}).map((x, i) => x.catch(e => { 
+		}).map((x, i) => x.catch((e: Error) => { 
 			return {
 				name: vs[i].name,
 				type: 'evaluation failed!',

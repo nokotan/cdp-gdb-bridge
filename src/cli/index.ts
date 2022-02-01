@@ -8,7 +8,7 @@ import { DebugAdapter } from '../core/DebugAdapterInterface';
 
 class DummyDebugAdapter implements DebugAdapter {
     sendEvent() {
-
+        // do nothing
     }
 }
 
@@ -42,7 +42,7 @@ async function main() {
     } finally {
         if (client) {
             console.log('session closed.');
-            client.close();
+            void client.close();
         }
 
         if (launchedBrowser) {
@@ -51,4 +51,4 @@ async function main() {
     }
 }
 
-main();
+void main();

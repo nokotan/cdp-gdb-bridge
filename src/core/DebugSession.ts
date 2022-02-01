@@ -65,7 +65,7 @@ export class DebugSession {
     }
 
     getGlobalVariablelist(inst: number) {
-        let list = [];
+        const list = [];
 
         for (const x of this.sources) {
             list.push(x.dwarf.global_variable_name_list(inst));
@@ -117,10 +117,10 @@ export class DebugSessionManager implements DebuggerCommand {
         this.page = _page;
         this.runtime = _runtime;
 
-        this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
-        this.debugger.on('paused', (e) => this.onPaused(e));
-        this.debugger.on('resumed', () => this.onResumed());
-        if (this.page) this.page.on('loadEventFired', (e) => this.onLoad(e));
+        this.debugger.on('scriptParsed', (e) => void this.onScriptLoaded(e));
+        this.debugger.on('paused', (e) => void this.onPaused(e));
+        this.debugger.on('resumed', () => void this.onResumed());
+        if (this.page) this.page.on('loadEventFired', (e) => void this.onLoad(e));
 
         this.session = new DebugSession();
     }
@@ -146,7 +146,7 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     async setFocusedFrame(index: number) {
-        this.sessionState.setFocusedFrame(index);
+        await this.sessionState.setFocusedFrame(index);
     }
 
     async showLine() {
@@ -288,29 +288,29 @@ export class DebugSessionManager implements DebuggerCommand {
         await Promise.all(promises);
     }
 
-    async getBreakPointsList(location: string) {
+    getBreakPointsList(location: string): Promise<IBreakPoint[]> {
         const fileInfo = location.split(':');
         
         if (fileInfo.length < 2)
         {
-            return [];
+            return Promise.resolve([]);
         }
 
         const debugfilename = fileInfo[0];
         const debugline = Number(fileInfo[1]);
 
-        return this.breakPoints.filter(x => {
+        return Promise.resolve(this.breakPoints.filter(x => {
                 return x.file == debugfilename && x.line == debugline;
             }).map(x => {
                 return {
                     ...x,
                     verified: true
                 };
-            });
+            }));
     }
 
     async jumpToPage(url: string) {
-        this.page?.navigate({
+        await this.page?.navigate({
             url
         });
     }
@@ -322,18 +322,18 @@ export class DebugSessionManager implements DebuggerCommand {
             console.error(`Start Loading ${e.url}...`);
 
             const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
-            const buffer = Buffer.from(response?.bytecode!, 'base64');
+            const buffer = Buffer.from(response?.bytecode || '', 'base64');
 
             const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
             this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
             console.error(`Finish Loading ${e.url}`);
 
-            this.updateBreakPoint();
+            await this.updateBreakPoint();
         }
     }
 
-    private async onPaused(e: Protocol.Debugger.PausedEvent) {
+    private onPaused(e: Protocol.Debugger.PausedEvent) {
         console.error("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
@@ -356,11 +356,11 @@ export class DebugSessionManager implements DebuggerCommand {
         this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
     }
 
-    private async onResumed() {
+    private onResumed() {
         this.sessionState = new RunningDebugSessionState();
     }
 
-    private async onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
+    private onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
         console.error('Page navigated.');
         this.breakPoints.forEach(x => x.verified = false);
         this.session!.reset();
