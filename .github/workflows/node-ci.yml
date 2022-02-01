@@ -35,5 +35,5 @@ jobs:
           rust-version: stable
       - run: cargo install wasm-pack
 
-      - run: npm run lint
       - run: npm run test
+      - run: npm run lint
