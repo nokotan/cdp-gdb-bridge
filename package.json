@@ -154,6 +154,11 @@
                 "type": "string",
                 "description": "path to node.",
                 "default": "node"
+              },
+              "cwd": {
+                "type": "string",
+                "description": "working directory",
+                "default": "${workspaceFolder}"
               }
             }
           },
@@ -172,7 +177,8 @@
             "type": "wasm-node",
             "request": "launch",
             "name": "WebAssembly Debug on Node",
-            "program": "${workspaceFolder}/index.js"
+            "program": "${workspaceFolder}/index.js",
+            "cwd": "${workspaceFolder}"
           }
         ],
         "configurationSnippets": [
@@ -183,7 +189,8 @@
               "type": "wasm-node",
               "request": "launch",
               "name": "WebAssembly Debug on Node",
-              "program": "${workspaceFolder}/index.js"
+              "program": "${workspaceFolder}/index.js",
+              "cwd": "${workspaceFolder}"
             }
           }
         ]

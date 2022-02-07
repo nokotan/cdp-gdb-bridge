@@ -39,6 +39,8 @@ interface INodeLaunchRequestArguments {
 
 	/** An absolute url to the "program" to debug. */
 	node?: string;
+
+	cwd?: string;
 }
 
 export interface Logger {
@@ -126,7 +128,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			}	
 			case 'wasm-node': {
 				const nodeExecitable = args.node || "node";
-				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, args.program! ]);
+				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, args.program! ], { cwd: args.cwd });
 				this.launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				this.launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
