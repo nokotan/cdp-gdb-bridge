@@ -1,6 +1,6 @@
 use gimli::{ 
     Unit, Reader, DebuggingInformationEntry,
-    DebugLine, LineRow
+    DebugLine, LineRow, DebugLineOffset
 };
 use anyhow::{anyhow, Result};
 
@@ -8,7 +8,7 @@ use std::cell::{RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path,PathBuf};
 
-use super::{ DwarfReader, DwarfReaderOffset };
+use super::{ DwarfReader, DwarfReaderOffset, DwarfDebugData };
 use super::utils::{ clone_string_attribute, convert_from_windows_stype_path, is_absolute_path, normalize_path };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -179,13 +179,20 @@ fn transform_file_index(file_index: usize, paths: &Vec<std::path::PathBuf>) -> S
 
 
 pub struct DwarfSourceMap {
-    address_sorted_rows: Vec<(u64, LineInfo)>,
+    /// Source files -> DebugLineOffsets mapping table
+    file_sorted_entry_offsets: Vec<(String, DebugLineOffset)>,
+    /// Source files -> LineRows by source lines mapping table
     file_sorted_rows: Vec<(String, Vec<(u64, LineRow)>)>,
+    /// Code address -> Source files mapping table
+    address_sorted_rows: Vec<(u64, LineInfo)>,
+
     directory_map: RefCell<HashMap<String, String>>,
+
+    dwarf_data: DwarfDebugData
 }
 
 impl DwarfSourceMap {
-    pub fn new(units: Vec<DwarfUnitSourceMap>) -> Self {
+    pub fn new(units: Vec<DwarfUnitSourceMap>, dwarf_data: DwarfDebugData) -> Self {
         let mut address_rows = BTreeMap::new();
         let mut file_rows = BTreeMap::new();
         for unit in units {
@@ -201,14 +208,20 @@ impl DwarfSourceMap {
             }
         }
         Self {
+            file_sorted_entry_offsets: Vec::new(),
             address_sorted_rows: address_rows.into_iter().collect(),
             file_sorted_rows: file_rows.into_iter().collect(),
             directory_map: RefCell::new(HashMap::new()),
+            dwarf_data
         }
     }
 
-    fn set_directory_map(&self, from: String, to: String) {
+    pub fn set_directory_map(&self, from: String, to: String) {
         self.directory_map.borrow_mut().insert(from, to);
+    }
+
+    fn update_file_sorted_rows(&mut self, offset: DebugLineOffset) {
+
     }
 
     pub fn find_line_info(&self, offset: usize) -> Option<LineInfo> {

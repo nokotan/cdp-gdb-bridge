@@ -6,7 +6,7 @@ use gimli::{
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, parse_dwarf, header_from_offset, unit_type_name, error };
+use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, DwarfDebugData, unit_type_name, error };
 use super::variables::{ FrameBase, VariableName, TypeDescripter, variables_in_unit_entry, evaluate_variable_from_string };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector, Value };
@@ -151,7 +151,7 @@ fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result
 
 pub struct DwarfSubroutineMap {
     pub subroutines: Vec<Subroutine>,
-    pub buffer: Rc<[u8]>,
+    pub dwarf_data: DwarfDebugData,
 }
 
 impl DwarfSubroutineMap {
@@ -173,15 +173,14 @@ impl DwarfSubroutineMap {
     pub fn variable_name_list(&self, code_offset: usize, group_id: i32) -> Result<Vec<VariableName>> {
         let offset = code_offset as u64;
         let subroutine = self.find_subroutine(code_offset)?;
-        let dwarf = parse_dwarf(&self.buffer)?;
-        let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
-            Some(header) => header,
-            None => {
-                return Ok(vec![]);
+
+        let (dwarf, unit) = match self.dwarf_data.unit_offset(subroutine.unit_offset)? {
+            Some(x) => x,
+            None => { 
+                return Ok(Vec::new());
             }
         };
 
-        let unit = dwarf.unit(header)?;
         let entry_offset = subroutine.entry_offset;
         let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, group_id)?;
 
@@ -224,15 +223,12 @@ impl DwarfSubroutineMap {
     ) -> Result<Option<VariableInfo>> {
         let offset = code_offset as u64;
         let subroutine = self.find_subroutine(code_offset)?;
-        let dwarf = parse_dwarf(&self.buffer)?;
-        let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
-            Some(header) => header,
-            None => {
+        let (dwarf, unit) = match self.dwarf_data.unit_offset(subroutine.unit_offset)? {
+            Some(x) => x,
+            None => { 
                 return Ok(None);
             }
         };
-
-        let unit = dwarf.unit(header)?;
         let entry_offset = subroutine.entry_offset;
         let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, 0)?;
 

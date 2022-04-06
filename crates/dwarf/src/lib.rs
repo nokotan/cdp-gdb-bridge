@@ -15,22 +15,19 @@ use crate::dwarf::wasm_bindings::{
 pub struct DwarfDebugSymbolContainer {
     debug_info: DwarfDebugInfo,
     code_base: usize,
-    data_base: usize,
-    data_ref: Rc<[u8]>
+    data_base: usize
 }
 
 #[wasm_bindgen]
 impl DwarfDebugSymbolContainer {
 
     pub fn new(data: &[u8]) -> Self {
-        let data_rc: Rc<[u8]> = Rc::from(data);
         let base = calculate_code_base(data).ok().unwrap_or((0, 0));
 
         DwarfDebugSymbolContainer {
             code_base: base.0,
             data_base: base.1,
-            debug_info: transform_dwarf(data_rc.clone()).unwrap(),
-            data_ref: data_rc.clone()
+            debug_info: transform_dwarf(data).unwrap(),
         }
     }
 

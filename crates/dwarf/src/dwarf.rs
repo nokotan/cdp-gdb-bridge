@@ -45,52 +45,78 @@ macro_rules! console_log {
     ($($t:tt)*) => (error(&format_args!($($t)*).to_string()))
 }
 
+/// Dwarf reader definitions for wasm-dwarf-alanyser
 pub type DwarfReader = EndianRcSlice<LittleEndian>;
 pub type DwarfReaderOffset = <DwarfReader as Reader>::Offset;
 pub type Dwarf = gimli::Dwarf<DwarfReader>;
+pub type DwarfUnit = gimli::Unit<DwarfReader>;
 
-pub fn parse_dwarf(data: &[u8]) -> Result<Dwarf> {
-    let endian = gimli::LittleEndian;
-
-    let parser = Parser::new(0);
-    let mut sections = HashMap::new();
-    for payload in parser.parse_all(data) {
-        match payload? {
-            Payload::CustomSection { name, data, .. } => {
-                sections.insert(name, data);
-            }
-            _ => continue,
-        }
-    }
-
-    // Load a section and return as `Cow<[u8]>`.
-    let load_section = |id: gimli::SectionId| -> Result<Rc<[u8]>> {
-        match sections.get(id.name()) {
-            Some(section) => Ok(Rc::from(*section)),
-            None => Ok(Rc::from(&[][..])),
-        }
-    };
-
-    // Load all of the sections.
-    let dwarf_cow = gimli::Dwarf::load(&load_section)?;
-
-    // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
-    let borrow_section = |section: &Rc<[u8]>| -> gimli::EndianRcSlice<gimli::LittleEndian> { 
-        gimli::EndianRcSlice::new(section.clone(), endian) 
-    };
-
-    // Create `EndianSlice`s for all of the sections.
-    Ok(dwarf_cow.borrow(&borrow_section))
+/// Dwarf debug data utility
+#[derive(Clone)]
+pub struct DwarfDebugData {
+    program_raw_data: HashMap<String, Rc<[u8]>>,
 }
 
+impl DwarfDebugData {
+
+    /// Load webassembly binary and copy custom section data
+    pub fn new(wasm_binary: &[u8]) -> Result<Self> {
+        let parser = Parser::new(0);
+        let mut sections = HashMap::new();
+
+        for payload in parser.parse_all(wasm_binary) {
+            match payload? {
+                Payload::CustomSection { name, data, .. } => {
+                    sections.insert(String::from(name), Rc::from(data));
+                }
+                _ => continue,
+            }
+        };
+
+        Ok(Self {
+            program_raw_data: sections
+        })
+    }
+
+    pub fn parse_dwarf(&self) -> Result<Dwarf> {
+
+        let load_section = |id: gimli::SectionId| -> Result<DwarfReader> {
+            let data = match self.program_raw_data.get(id.name()) {
+                Some(section) => section.clone(),
+                None => Rc::from(&[][..]),
+            };
+
+            Ok(EndianRcSlice::new(data, LittleEndian))
+        };
+
+        Ok(Dwarf::load(&load_section)?)
+    }
+
+    pub fn unit_offset(&self, offset: UnitSectionOffset) -> Result<Option<(Dwarf, DwarfUnit)>> {
+        let dwarf = self.parse_dwarf()?;
+        let header = match header_from_offset(&dwarf, offset)? {
+            Some(header) => header,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        let unit = dwarf.unit(header)?;
+        Ok(Some((dwarf, unit)))
+    }
+}
+
+/// Parsed dwarf debug data container
 pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
     pub subroutine: DwarfSubroutineMap,
-    pub global_variables: DwarfGlobalVariables
+    pub global_variables: DwarfGlobalVariables,
+    debug_data: DwarfDebugData
 }
 
-pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
-    let dwarf = parse_dwarf(buffer.borrow())?;
+pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
+    let dwarf_data = DwarfDebugData::new(buffer)?;
+    let dwarf = dwarf_data.parse_dwarf()?;
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
@@ -117,14 +143,15 @@ pub fn transform_dwarf(buffer: Rc<[u8]>) -> Result<DwarfDebugInfo> {
     console_log!("found {} entries", entry_num);
 
     Ok(DwarfDebugInfo {
-        sourcemap: DwarfSourceMap::new(sourcemaps),
+        sourcemap: DwarfSourceMap::new(sourcemaps, dwarf_data.clone()),
         subroutine: DwarfSubroutineMap {
             subroutines,
-            buffer: buffer.clone(),
+            dwarf_data: dwarf_data.clone()
         },
         global_variables: DwarfGlobalVariables {
-            buffer: buffer.clone(),
-        }
+            dwarf_data: dwarf_data.clone()
+        },
+        debug_data: dwarf_data.clone()
     })
 }
 

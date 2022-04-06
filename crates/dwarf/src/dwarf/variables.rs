@@ -6,8 +6,7 @@ use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
 use super::{ 
-    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, 
-    parse_dwarf, header_from_offset, unit_type_name };
+    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, DwarfDebugData, header_from_offset, unit_type_name };
 use super::utils::{ clone_string_attribute };
 use super::wasm_bindings::{ WasmValueVector };
 
@@ -490,20 +489,19 @@ fn create_variable_info<R: gimli::Reader>(
 
 
 pub struct DwarfGlobalVariables {
-    pub buffer: Rc<[u8]>
+    pub dwarf_data: DwarfDebugData
 }
 
 impl DwarfGlobalVariables {
     pub fn variable_name_list(&self, unit_offset: UnitSectionOffset, root_id: i32) -> Result<Vec<VariableName>> {
-        let dwarf = parse_dwarf(&self.buffer)?;
-        let header = match header_from_offset(&dwarf, unit_offset)? {
-            Some(header) => header,
-            None => {
-                return Ok(vec![]);
+
+        let (dwarf, unit) = match self.dwarf_data.unit_offset(unit_offset)? {
+            Some(x) => x,
+            None => { 
+                return Ok(Vec::new());
             }
         };
 
-        let unit = dwarf.unit(header)?;
         let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, root_id)?;
         let list = variables.iter()
             .map(|var| {
@@ -540,15 +538,12 @@ impl DwarfGlobalVariables {
         name: &String,
     ) -> Result<Option<VariableInfo>> {
 
-        let dwarf = parse_dwarf(&self.buffer)?;
-        let header = match header_from_offset(&dwarf, unit_offset)? {
-            Some(header) => header,
-            None => {
+        let (dwarf, unit) = match self.dwarf_data.unit_offset(unit_offset)? {
+            Some(x) => x,
+            None => { 
                 return Ok(None);
             }
         };
-
-        let unit = dwarf.unit(header)?;
         let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, 0)?;
 
         evaluate_variable_from_string(name, &variables, &dwarf, &unit, frame_base)
