@@ -444,30 +444,12 @@ fn create_variable_info<R: gimli::Reader>(
             let byte_size = entry
                 .attr_value(gimli::DW_AT_byte_size)?
                 .and_then(|attr| attr.udata_value())
-                .ok_or(anyhow!("Failed to get byte_size"))?;
-            let mut children = node.children();
-            let mut members = vec![];
-            while let Some(child) = children.next()? {
-                match child.entry().tag() {
-                    gimli::DW_TAG_member => {
-                        let name = match child.entry().attr_value(gimli::DW_AT_name)? {
-                            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                            None => "<no member name>".to_string(),
-                        };
-                        // let ty = match entry.attr_value(gimli::DW_AT_type)? {
-                        //     Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
-                        //     _ => return Err(anyhow!("Failed to get type offset")),
-                        // };
-                        members.push(name);
-                    }
-                    _ => continue,
-                }
-            }
+                .unwrap_or(0);
             
             Ok(VariableInfo {
                 address_expr: address,
                 byte_size: byte_size as usize,
-                name: format!("{} {{ {} }}", type_name, members.join(", ")),
+                name: type_name,
                 encoding: gimli::DW_ATE_signed,
                 tag,
                 memory_slice: MemorySlice::from_u8_vec(data),
