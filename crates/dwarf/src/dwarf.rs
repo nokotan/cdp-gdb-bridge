@@ -11,7 +11,6 @@ use gimli::{
 };
 use anyhow::{anyhow, Result};
 use std::rc::{Rc};
-use std::borrow::Borrow;
 use num_bigint::{BigUint};
 
 pub mod sourcemap;
@@ -95,7 +94,6 @@ pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
     pub subroutine: DwarfSubroutineMap,
     pub global_variables: DwarfGlobalVariables,
-    debug_data: DwarfDebugData
 }
 
 pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
@@ -133,9 +131,8 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
             dwarf_data: dwarf_data.clone()
         },
         global_variables: DwarfGlobalVariables {
-            dwarf_data: dwarf_data.clone()
-        },
-        debug_data: dwarf_data.clone()
+            dwarf_data: dwarf_data
+        }
     })
 }
 

@@ -3,7 +3,6 @@ use gimli::{
     Expression, UnitOffset, UnitSectionOffset
 };
 use anyhow::{anyhow, Result};
-use std::rc::{Rc};
 
 use super::{ 
     DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, DwarfDebugData, unit_type_name };
@@ -293,8 +292,8 @@ pub fn evaluate_variable_from_string(
     let var = match variables
         .iter()
         .filter(|v| {
-            if let Some(vname) = v.name.clone() {
-                vname == name || vname == this_name
+            if let Some(ref vname) = v.name {
+                *vname == name || *vname == this_name
             } else {
                 false
             }

@@ -316,8 +316,6 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     private async onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
-        console.error(e.url);
-
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
 
