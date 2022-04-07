@@ -188,6 +188,15 @@ fn structure_variable_recursive(
                 }
             } 
         },
+        gimli::DW_TAG_const_type => {
+            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
+                if node.entry().offset() != *offset {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
+                    let root = tree.root()?;
+                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
+                }
+            } 
+        },
         _ => {
             if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
                 if node.entry().offset() != *offset {
