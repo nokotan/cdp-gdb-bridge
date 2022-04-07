@@ -6,9 +6,10 @@ use anyhow::{anyhow, Result};
 use std::rc::{Rc};
 
 use super::{ 
-    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, DwarfDebugData, header_from_offset, unit_type_name };
-use super::utils::{ clone_string_attribute };
+    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, DwarfDebugData, unit_type_name };
+use super::utils::{ clone_string_attribute, error };
 use super::wasm_bindings::{ WasmValueVector };
+use crate::{ console_log };
 
 pub struct VariableName {
     pub name: String,
@@ -354,6 +355,8 @@ pub fn evaluate_variable_from_string(
         return match create_variable_info(root, calculated_address, constant_data, &dwarf, &unit) {
             Ok(x) => Ok(Some(x)),
             Err(_) => Ok(None)
+        };    
+            };   
         };    
     }
     Ok(None)

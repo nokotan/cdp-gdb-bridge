@@ -6,10 +6,11 @@ use std::rc::{Rc};
 
 mod dwarf;
 
-use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf, error };
+use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf };
 use crate::dwarf::wasm_bindings::{ 
     WasmLineInfo, WasmValueVector, VariableVector
 };
+use crate::dwarf::utils::{ error };
 
 #[wasm_bindgen]
 pub struct DwarfDebugSymbolContainer {

@@ -18,32 +18,16 @@ pub mod sourcemap;
 pub mod subroutine;
 pub mod variables;
 pub mod wasm_bindings;
+pub mod utils;
 
 mod format;
-mod utils;
 
 use sourcemap::{ DwarfSourceMap, transform_debug_line };
 use subroutine::{ DwarfSubroutineMap, transform_subprogram };
 use variables::{ DwarfGlobalVariables, VariableLocation };
 use format::{ format_object };
-use utils::{ clone_string_attribute };
-
-use wasm_bindgen::*;
-
-#[wasm_bindgen]
-extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
-    #[wasm_bindgen(js_namespace = console)]
-    pub fn error(s: &str);
-}
-
-#[macro_export]
-macro_rules! console_log {
-    // Note that this is using the `log` function imported above during
-    // `bare_bones`
-    ($($t:tt)*) => (error(&format_args!($($t)*).to_string()))
-}
+use utils::{ clone_string_attribute, error };
+use crate::{ console_log };
 
 /// Dwarf reader definitions for wasm-dwarf-alanyser
 pub type DwarfReader = EndianRcSlice<LittleEndian>;
