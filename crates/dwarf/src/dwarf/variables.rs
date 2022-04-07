@@ -356,18 +356,33 @@ pub fn evaluate_variable_from_string(
         };        
     }
 
-    if let TypeDescripter::TypeOffset(offset) = var.ty_offset {
-        let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-        let root = tree.root()?;
-        
-        return match create_variable_info(root, calculated_address, constant_data, &dwarf, &unit) {
-            Ok(x) => Ok(Some(x)),
-            Err(_) => Ok(None)
-        };    
+    match &var.ty_offset {
+        TypeDescripter::TypeOffset(offset) => {
+            let mut tree = unit.entries_tree(Some(UnitOffset(*offset)))?;
+            let root = tree.root()?;
+            
+            return match create_variable_info(root, calculated_address, constant_data, &dwarf, &unit) {
+                Ok(x) => Ok(Some(x)),
+                Err(e) => {
+                    console_log!("{}", e);
+                    Ok(None)
+                }
             };   
-        };    
+        },
+        TypeDescripter::Description(desc) => {
+            Ok(Some(
+                VariableInfo {
+                    name: desc.clone(),
+                    address_expr: Vec::new(),
+                    byte_size: 0,
+                    tag: gimli::DW_TAG_class_type,
+                    memory_slice: MemorySlice::new(),
+                    state: VariableEvaluationResult::Ready,
+                    encoding: gimli::DW_ATE_ASCII
+                }
+            ))
+        }
     }
-    Ok(None)
 }
 
 fn evaluate_variable_location<R: gimli::Reader>(
