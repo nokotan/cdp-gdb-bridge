@@ -15,11 +15,11 @@ pub fn format_object(
             bytes.extend_from_slice(&varinfo.memory_slice.memory_slice[0..(byte_size as usize)]);
 
             match encoding {
-                gimli::DW_ATE_signed => {
+                gimli::DW_ATE_signed | gimli::DW_ATE_signed_char => {
                     let value = BigInt::from_signed_bytes_le(&bytes);
                     Ok(format!("({}){}", name, value))
                 }
-                gimli::DW_ATE_unsigned => {
+                gimli::DW_ATE_unsigned | gimli::DW_ATE_unsigned_char => {
                     let value = BigUint::from_bytes_le(&bytes);
                     Ok(format!("({}){}", name, value))
                 }
