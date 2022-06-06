@@ -179,13 +179,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         // extract domains
         const { Debugger, Page, Runtime } = this.client;
 
-		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
-
         await Debugger.enable({});
         await Runtime.enable();
-
+		
 		// nodejs don't have Page interface.
         if (Page) await Page.enable();
+
+		await this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 
 		this.sendResponse(response);
 	}

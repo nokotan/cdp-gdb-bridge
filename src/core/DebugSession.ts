@@ -1,7 +1,7 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import {
-	StoppedEvent, BreakpointEvent
+	StoppedEvent, BreakpointEvent, ContinuedEvent
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
 import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
@@ -112,7 +112,7 @@ export class DebugSessionManager implements DebuggerCommand {
         this.sessionState = new RunningDebugSessionState();
     }
 
-    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
+    async setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
         this.debugger = _debugger;
         this.page = _page;
         this.runtime = _runtime;
@@ -123,6 +123,8 @@ export class DebugSessionManager implements DebuggerCommand {
         if (this.page) this.page.on('loadEventFired', (e) => void this.onLoad(e));
 
         this.session = new DebugSession();
+        
+        await this.debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
     }
 
     async stepOver() {
@@ -329,9 +331,16 @@ export class DebugSessionManager implements DebuggerCommand {
 
             await this.updateBreakPoint();
         }
+
+        this.debugger?.resume({});
     }
 
     private onPaused(e: Protocol.Debugger.PausedEvent) {
+        if (e.reason == "instrumentation") {
+            console.error("Instrumentation BreakPoint");
+            return;
+        }
+
         console.error("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
@@ -350,12 +359,12 @@ export class DebugSessionManager implements DebuggerCommand {
         });
 
         this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
-
         this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
     }
 
     private onResumed() {
         this.sessionState = new RunningDebugSessionState();
+        this.debugAdapter.sendEvent(new ContinuedEvent(this.DummyThreadID));
     }
 
     private onLoad(e: Protocol.Page.DomContentEventFiredEvent) {

@@ -152,7 +152,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
 
         for (const varlist of varlists) {
             if (!varlist) {
-                continue
+                continue;
             }
             
             for (let i = 0; i < varlist.size(); i++)

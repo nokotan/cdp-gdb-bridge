@@ -1,10 +1,8 @@
-use wasm_bindgen::prelude::*;
 use gimli::{
     UnitOffset, Unit,
     AttributeValue, UnitSectionOffset
 };
 use anyhow::{anyhow, Result};
-use std::rc::{Rc};
 
 use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, DwarfDebugData, unit_type_name, error };
 use super::variables::{ FrameBase, VariableName, TypeDescripter, variables_in_unit_entry, evaluate_variable_from_string };
