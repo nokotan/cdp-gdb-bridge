@@ -14,16 +14,23 @@ afterAll(() => {
 
 test('should run program to the end', () => {
     return Promise.all([
-        dc.launch({ program: "tests/app/main.js", type: "wasm-node", port: 19222 }),
+        dc.launch({ program: "tests/app/Main.js", type: "wasm-node", port: 19222 }),
         dc.waitForEvent('terminated')
     ]);
 });
 
 test('should hit breakpoint', () => {
+    const breakPoint = {
+        path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
+        line: 4
+    };
     return Promise.all([
-        dc.hitBreakpoint(
-            { program: "tests/app/main.js", type: "wasm-node", port: 19222 },
-            { path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp", line: 6 }
-        )
+        dc.setBreakpointsRequest(
+            { 
+                source: { path: breakPoint.path },
+                breakpoints: [ { line: breakPoint.line } ] 
+            }),
+        dc.launch({ program: "tests/app/Main.js", type: "wasm-node", port: 19222 }),
+        dc.waitForEvent('stopped')         
     ]);
-});
+}, 10000);

@@ -105,6 +105,7 @@ export class DebugSessionManager implements DebuggerCommand {
     private readonly DummyThreadID = 1;
 
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
+    private instrumentedScript: number = 0;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
@@ -112,7 +113,7 @@ export class DebugSessionManager implements DebuggerCommand {
         this.sessionState = new RunningDebugSessionState();
     }
 
-    async setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
+    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
         this.debugger = _debugger;
         this.page = _page;
         this.runtime = _runtime;
@@ -123,8 +124,6 @@ export class DebugSessionManager implements DebuggerCommand {
         if (this.page) this.page.on('loadEventFired', (e) => void this.onLoad(e));
 
         this.session = new DebugSession();
-        
-        await this.debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
     }
 
     async stepOver() {
@@ -318,6 +317,8 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     private async onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
+        console.error("onScriptLoaded")
+
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
 
@@ -332,12 +333,22 @@ export class DebugSessionManager implements DebuggerCommand {
             await this.updateBreakPoint();
         }
 
-        this.debugger?.resume({});
+        if (this.instrumentedScript > 0) {
+            this.instrumentedScript--;
+
+            if (this.instrumentedScript == 0) {
+                void this.debugger?.resume({});
+            }
+        }
     }
 
     private onPaused(e: Protocol.Debugger.PausedEvent) {
-        if (e.reason == "instrumentation") {
+        if (e.reason.startsWith("Break on start")) {
+            this.debugger?.resume({});
+            return;
+        } else if (e.reason == "instrumentation") {
             console.error("Instrumentation BreakPoint");
+            this.instrumentedScript++;
             return;
         }
 

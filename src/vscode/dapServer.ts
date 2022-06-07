@@ -105,10 +105,12 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 
         await Debugger.enable({});
+		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
+
         await Runtime.enable();
 
 		// nodejs don't have Page interface.
-        if (Page) await Page.enable();
+        if (Page) await Page.enable();		
 
 		this.sendResponse(response);
 	}
@@ -128,7 +130,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			}	
 			case 'wasm-node': {
 				const nodeExecitable = args.node || "node";
-				this.launchedProcess = spawn(nodeExecitable, [ `--inspect=${port}`, args.program! ], { cwd: args.cwd });
+				this.launchedProcess = spawn(nodeExecitable, [ `--inspect-brk=${port}`, args.program! ], { cwd: args.cwd });
 				this.launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				this.launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
@@ -145,7 +147,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				
 				// TODO: check if node process is launched.
 				await new Promise<void>((resolve, _) => {
-					setTimeout(resolve, 200)
+					setTimeout(resolve, 1000)
 				});
 
 				await new Promise<void>((resolve, reject) => {
@@ -179,13 +181,16 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         // extract domains
         const { Debugger, Page, Runtime } = this.client;
 
+		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+
         await Debugger.enable({});
+		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
+
         await Runtime.enable();
+		Runtime.runIfWaitingForDebugger();
 		
 		// nodejs don't have Page interface.
         if (Page) await Page.enable();
-
-		await this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
 
 		this.sendResponse(response);
 	}

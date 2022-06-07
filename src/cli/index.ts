@@ -28,14 +28,16 @@ async function main() {
         // extract domains
         const { Debugger, Page, Runtime } = client;
 
+        const manager = new DebugSessionManager(new DummyDebugAdapter());
+        manager.setChromeDebuggerApi(Debugger, Page, Runtime);
+      
         await Debugger.enable({});
         await Page.enable();
         await Runtime.enable();
 
-        const manager = new DebugSessionManager(new DummyDebugAdapter());
-        await manager.setChromeDebuggerApi(Debugger, Page, Runtime);
+		Runtime.runIfWaitingForDebugger();
+        
         const commandReader = new CommandReader(manager);
-
         await commandReader.start();
     } catch (err) {
         console.error(err);
