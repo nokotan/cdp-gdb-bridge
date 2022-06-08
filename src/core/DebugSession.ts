@@ -105,7 +105,7 @@ export class DebugSessionManager implements DebuggerCommand {
     private readonly DummyThreadID = 1;
 
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
-    private instrumentedScript: number = 0;
+    private scriptParsed?: Promise<void>;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
@@ -118,7 +118,7 @@ export class DebugSessionManager implements DebuggerCommand {
         this.page = _page;
         this.runtime = _runtime;
 
-        this.debugger.on('scriptParsed', (e) => void this.onScriptLoaded(e));
+        this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
         this.debugger.on('paused', (e) => void this.onPaused(e));
         this.debugger.on('resumed', () => void this.onResumed());
         if (this.page) this.page.on('loadEventFired', (e) => void this.onLoad(e));
@@ -316,39 +316,36 @@ export class DebugSessionManager implements DebuggerCommand {
         });
     }
 
-    private async onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
+    private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
         console.error("onScriptLoaded")
 
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
+            
+            this.scriptParsed = (async () => {
+                const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
+                const buffer = Buffer.from(response?.bytecode || '', 'base64');
 
-            const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
-            const buffer = Buffer.from(response?.bytecode || '', 'base64');
+                const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
+                this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
 
-            const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
-            this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
+                console.error(`Finish Loading ${e.url}`);
 
-            console.error(`Finish Loading ${e.url}`);
-
-            await this.updateBreakPoint();
-        }
-
-        if (this.instrumentedScript > 0) {
-            this.instrumentedScript--;
-
-            if (this.instrumentedScript == 0) {
-                void this.debugger?.resume({});
-            }
+                await this.updateBreakPoint();
+            })();
         }
     }
 
-    private onPaused(e: Protocol.Debugger.PausedEvent) {
+    private async onPaused(e: Protocol.Debugger.PausedEvent) {
         if (e.reason.startsWith("Break on start")) {
             this.debugger?.resume({});
             return;
         } else if (e.reason == "instrumentation") {
             console.error("Instrumentation BreakPoint");
-            this.instrumentedScript++;
+            if (this.scriptParsed) {
+                await this.scriptParsed;
+            }
+            this.debugger?.resume({});
             return;
         }
 

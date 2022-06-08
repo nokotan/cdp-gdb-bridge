@@ -108,6 +108,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
 
         await Runtime.enable();
+		await Runtime.runIfWaitingForDebugger();
 
 		// nodejs don't have Page interface.
         if (Page) await Page.enable();		
@@ -121,7 +122,6 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		switch (args.type) {
 			case 'wasm-chrome': {
 				const launchedProcess = await launch({
-					startingUrl: args.url,
 					port: port
 				});
 
@@ -187,10 +187,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
 
         await Runtime.enable();
-		Runtime.runIfWaitingForDebugger();
+		await Runtime.runIfWaitingForDebugger();
 		
 		// nodejs don't have Page interface.
-        if (Page) await Page.enable();
+        if (Page && args.type == "wasm-chrome") {
+			await Page.enable();
+			Page.navigate({ url: args.url || "index.html" });
+		}
 
 		this.sendResponse(response);
 	}

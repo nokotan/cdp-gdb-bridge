@@ -32,11 +32,11 @@ async function main() {
         manager.setChromeDebuggerApi(Debugger, Page, Runtime);
       
         await Debugger.enable({});
-        await Page.enable();
+        await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
         await Runtime.enable();
+        await Runtime.runIfWaitingForDebugger();
+        await Page.enable();
 
-		Runtime.runIfWaitingForDebugger();
-        
         const commandReader = new CommandReader(manager);
         await commandReader.start();
     } catch (err) {
