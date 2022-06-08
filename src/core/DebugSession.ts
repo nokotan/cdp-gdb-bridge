@@ -240,10 +240,12 @@ export class DebugSessionManager implements DebuggerCommand {
                 columnNumber: wasmLocation.column
             };
     
+            console.error(`breakpoint ${bpInfo.file}:${bpInfo.line} -> ${wasmLocation.column}`);
+
             const bp = await this.debugger!.setBreakpoint({ 
                 location: wasmDebuggerLocation
             });
-    
+
             const correspondingLocation = this.session!.findFileFromLocation(wasmDebuggerLocation)!;
 
             bpInfo.file = correspondingLocation.file();
