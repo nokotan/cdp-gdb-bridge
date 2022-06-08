@@ -27,7 +27,7 @@ Start Loading http://localhost:8080/index.wasm...
 |:--:|:--:|
 | r (url) | Jump to url |
 | b (FileName):(LineNumber) | Set Breakpoint |
-| d (breakpoint ID | Delete Breakpoint |
+| d (breakpoint ID) | Delete Breakpoint |
 | n | Step-Over |
 | s | Step-In |
 | u | Step-Out |
