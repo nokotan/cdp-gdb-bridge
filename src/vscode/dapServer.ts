@@ -209,7 +209,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		// nodejs don't have Page interface.
         if (Page && args.type == "wasm-chrome") {
 			await Page.enable();
-			Page.navigate({ url: args.url || "index.html" });
+			await Page.navigate({ url: args.url || "index.html" });
 		}
 
 		this.sendResponse(response);

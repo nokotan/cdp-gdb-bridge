@@ -340,14 +340,14 @@ export class DebugSessionManager implements DebuggerCommand {
 
     private async onPaused(e: Protocol.Debugger.PausedEvent) {
         if (e.reason.startsWith("Break on start")) {
-            this.debugger?.resume({});
+            await this.debugger?.resume({});
             return;
         } else if (e.reason == "instrumentation") {
             console.error("Instrumentation BreakPoint");
             if (this.scriptParsed) {
                 await this.scriptParsed;
             }
-            this.debugger?.resume({});
+            await this.debugger?.resume({});
             return;
         }
 
