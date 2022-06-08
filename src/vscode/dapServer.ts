@@ -96,6 +96,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 		// make VS Code use 'evaluate' when hovering over source
 		response.body.supportsEvaluateForHovers = true;
+		response.body.supportsTerminateRequest = true;
+
 		this.session = new DebugSessionManager(this);
 
         this.sendResponse(response);
