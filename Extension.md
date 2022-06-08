@@ -11,7 +11,7 @@ WebAssembly Debugger for Google Chrome, node.js
 
 || Windows | macOS | Linux |
 | :--: | :--: | :--: | :--: |
-| node.js | 🚧 | 🚧 | 🚧 |
+| node.js | ✅ | ✅ | ✅ |
 | Chrome | ✅ | ✅ | ✅ |
 | FireFox | ❌ | ❌ | ❌ |
 | Safari | - | ❌ | - |
