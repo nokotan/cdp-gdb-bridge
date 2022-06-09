@@ -20,6 +20,7 @@ pub struct VariableName {
 pub struct SymbolVariable
 {
     pub name: Option<String>,
+    pub display_name: Option<String>,
     pub contents: Vec<VariableExpression>,
     pub ty_offset: TypeDescripter,
     pub group_id: i32,
@@ -67,7 +68,7 @@ pub fn variables_in_unit_entry(
     let root = tree.root()?;
     let mut variables = vec![];
     let mut root_group_id = root_group_id;
-    variables_in_unit_entry_recursive(root, dwarf, unit, code_offset, &mut variables, &mut root_group_id)?;
+    variables_in_unit_entry_recursive(root, dwarf, unit, code_offset, &mut variables, root_group_id, &mut root_group_id)?;
     Ok(variables)
 }
 
@@ -77,11 +78,11 @@ fn variables_in_unit_entry_recursive(
     unit: &Unit<DwarfReader>,
     code_offset: u64,
     variables: &mut Vec<SymbolVariable>,
+    root_group_id: i32,
     group_id: &mut i32
 ) -> Result<()> {
 
     let mut children = node.children();
-    let current_group_id = *group_id;
 
     if *group_id < 10000
     {
@@ -95,7 +96,7 @@ fn variables_in_unit_entry_recursive(
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let mut var = transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
+                let mut var = transform_variable(&dwarf, &unit, child.entry(), root_group_id)?;
                 structure_variable_recursive(child, dwarf, unit, &mut var, variables, group_id)?;
                 variables.push(var);
             }
@@ -114,14 +115,14 @@ fn variables_in_unit_entry_recursive(
                     let code_range = low_pc..high_pc;
 
                     if code_range.contains(&code_offset) {
-                        variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, group_id)?;
+                        variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, root_group_id, group_id)?;
                     }
                 }
             }
             gimli::DW_TAG_namespace => {
-                let mut var = transform_namespace(&dwarf, &unit, child.entry(), current_group_id)?;
+                let mut var = transform_namespace(&dwarf, &unit, child.entry(), root_group_id)?;
                 var.child_group_id = Some(*group_id);
-                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, group_id)?;
+                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, *group_id, group_id)?;
                 variables.push(var);
             }
             _ => continue,
@@ -154,7 +155,14 @@ fn structure_variable_recursive(
                         contents.append(&mut var.contents);
 
                         let mut var = SymbolVariable {
-                            name: Some(var.name.unwrap_or("<unnamed>".to_string())),
+                            name: Some(
+                                var.name.unwrap_or("<unnamed>".to_string())
+                            ),
+                            display_name: Some(format!(
+                                "{}.{}", 
+                                parent_variable.name.unwrap_or("<unnamed>".to_string()), 
+                                var.name.unwrap_or("<unnamed>".to_string())
+                            )),
                             contents,
                             ty_offset: var.ty_offset,
                             group_id: var.group_id,
@@ -251,7 +259,8 @@ fn transform_variable(
     };
 
     Ok(SymbolVariable {
-        name,
+        name: name.clone(),
+        display_name: name,
         contents: match content {
             Some(x) => vec![x],
             None => vec![]
@@ -274,7 +283,8 @@ fn transform_namespace(
     };
 
     Ok(SymbolVariable {
-        name,
+        name: name.clone(),
+        display_name: name,
         contents: vec![],
         ty_offset: TypeDescripter::Description(String::from("namespace")),
         group_id,
@@ -297,7 +307,7 @@ pub fn evaluate_variable_from_string(
     let var = match variables
         .iter()
         .filter(|v| {
-            if let Some(ref vname) = v.name {
+            if let Some(ref vname) = v.display_name {
                 *vname == name || *vname == this_name
             } else {
                 false
