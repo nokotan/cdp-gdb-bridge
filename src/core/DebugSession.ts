@@ -174,60 +174,27 @@ export class DebugSessionManager implements DebuggerCommand {
             ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1
             : 1;
 
-        if (!this.session)
-        {
-            const bpInfo = {
-                id: bpID,
-                file: debugfilename,
-                line: debugline,
-                verified: false
-            };
-
-            this.breakPoints.push(bpInfo);
-            return bpInfo;
-        }
-
-        const wasmLocation = this.session.findAddressFromFileLocation(debugfilename, debugline);
-       
-        if (!wasmLocation) {
-            const bpInfo = {
-                id: bpID,
-                file: debugfilename,
-                line: debugline,
-                verified: false
-            };
-
-            this.breakPoints.push(bpInfo);
-            return bpInfo;
-        }
-
-        const wasmDebuggerLocation = { 
-            scriptId: wasmLocation.scriptId,  
-            lineNumber: wasmLocation.line,
-            columnNumber: wasmLocation.column
-        };
-
-        const bp = await this.debugger!.setBreakpoint({ 
-            location: wasmDebuggerLocation
-        });
-
-        const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
-
         const bpInfo = {
             id: bpID,
-            rawId: bp.breakpointId,
-            file: correspondingLocation.file(),
-            line: correspondingLocation.line!,
-            verified: true
+            file: debugfilename,
+            line: debugline,
+            verified: false
         };
-        
+
         this.breakPoints.push(bpInfo);
+
+        await this.updateBreakPoint();
+
         return bpInfo;
     }
 
     async updateBreakPoint() {
         const promises = this.breakPoints.filter(x => !x.verified).map(async bpInfo => {
-            const wasmLocation = this.session!.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
+            if (!this.session) {
+                return bpInfo;
+            }
+
+            const wasmLocation = this.session.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
     
             if (!wasmLocation) {
                 console.error("cannot find address of specified file");
@@ -240,18 +207,23 @@ export class DebugSessionManager implements DebuggerCommand {
                 columnNumber: wasmLocation.column
             };
     
-            console.error(`breakpoint ${bpInfo.file}:${bpInfo.line} -> ${wasmLocation.column}`);
+            console.error(`update breakpoint ${bpInfo.file}:${bpInfo.line} -> ${wasmLocation.column}`);
 
             const bp = await this.debugger!.setBreakpoint({ 
                 location: wasmDebuggerLocation
+            }).catch(e => {
+                console.error(e);
+                return null;
             });
 
-            const correspondingLocation = this.session!.findFileFromLocation(wasmDebuggerLocation)!;
+            if (bp) {
+                const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
 
-            bpInfo.file = correspondingLocation.file();
-            bpInfo.line = correspondingLocation.line!;
-            bpInfo.rawId = bp.breakpointId;
-            bpInfo.verified = true;
+                bpInfo.file = correspondingLocation.file();
+                bpInfo.line = correspondingLocation.line!;
+                bpInfo.rawId = bp.breakpointId;
+                bpInfo.verified = true;
+            }
 
             return bpInfo;
         });

@@ -155,14 +155,14 @@ fn structure_variable_recursive(
                         contents.append(&mut var.contents);
 
                         let mut var = SymbolVariable {
-                            name: Some(
-                                var.name.unwrap_or("<unnamed>".to_string())
-                            ),
                             display_name: Some(format!(
                                 "{}.{}", 
-                                parent_variable.name.unwrap_or("<unnamed>".to_string()), 
-                                var.name.unwrap_or("<unnamed>".to_string())
+                                parent_variable.name.as_ref().unwrap_or(&"<unnamed>".to_string()), 
+                                var.name.as_ref().unwrap_or(&"<unnamed>".to_string())
                             )),
+                            name: Some(
+                                var.name.unwrap_or("<unnamed>".to_string())
+                            ),         
                             contents,
                             ty_offset: var.ty_offset,
                             group_id: var.group_id,
