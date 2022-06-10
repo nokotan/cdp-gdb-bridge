@@ -525,8 +525,8 @@ impl DwarfGlobalVariables {
                     group_id: var.group_id,
                     child_group_id: var.child_group_id
                 };
-                if let Some(name) = var.name.clone() {
-                    v.name = name;
+                if let Some(ref name) = var.name {
+                    v.name = name.clone();
                 }
                 match &var.ty_offset {
                     TypeDescripter::TypeOffset(offset) => {
