@@ -16,7 +16,7 @@ test('should run program to the end', () => {
         dc.initializeRequest(),
         new Promise(resolve => {
             dc.once("terminated", resolve);
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19222 });
+            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19201 });
         })
     ]);
 });
@@ -39,7 +39,7 @@ test('should hit breakpoint', () => {
                 console.log(response);
                 resolve();
             });
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19222 });
+            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 });
         })     
     ]);
 });

@@ -291,8 +291,6 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
-        console.error("onScriptLoaded")
-
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
             
@@ -317,6 +315,7 @@ export class DebugSessionManager implements DebuggerCommand {
         } else if (e.reason == "instrumentation") {
             console.error("Instrumentation BreakPoint");
             if (this.scriptParsed) {
+                console.error("awaiting scriptParsed...");
                 await this.scriptParsed;
             }
             await this.debugger?.resume({});

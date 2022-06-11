@@ -23,7 +23,7 @@ test('should run program on chrome to the end', () => {
     return Promise.all([
         dc.initializeRequest(),
         new Promise<void>(async resolve => {
-            await dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome" });
+            await dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19101 });
             resolve();
         })
     ]);
@@ -47,7 +47,7 @@ test('should hit breakpoint on chrome', () => {
                 console.log(response);
                 resolve();
             });
-            dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome" });
+            dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19102 });
         })     
     ]);
 }, 20000);
