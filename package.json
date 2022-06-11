@@ -93,6 +93,11 @@
                 "type": "number",
                 "description": "debugged port.",
                 "default": 9222
+              },
+              "flags": {
+                "type": "array",
+                "description": "chrome flags.",
+                "default": []
               }
             }
           },
