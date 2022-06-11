@@ -11,14 +11,17 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        node-version: [16.x]
+        node-version: [ 16.x ]
+        host: [
+          "windows-latest",
+          "ubuntu-latest",
+          "macos-latest"
+        ]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
+    runs-on:  ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v2
 
