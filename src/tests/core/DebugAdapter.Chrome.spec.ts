@@ -1,27 +1,35 @@
 import { DebugClient } from "@vscode/debugadapter-testsupport";
+import { Server } from "http";
+import { createServer } from "http-server";
 
 let dc: DebugClient;
+let server: Server;
 
 beforeAll(() => {
-    dc = new DebugClient('node', 'dist/vscode/dapServerLauncher.js', 'wasm-node', undefined, true);
+    dc = new DebugClient('node', 'dist/vscode/dapServerLauncher.js', 'wasm-chrome', undefined, true);
+    server = createServer({ 
+        root: "tests/app"
+    });
+    server.listen(8080);
     return dc.start();
 });
 
 afterAll(() => {
     dc.stop();
+    server.close();
 })
 
-test('should run program to the end', () => {
+test('should run program on chrome to the end', () => {
     return Promise.all([
         dc.initializeRequest(),
-        new Promise(resolve => {
-            dc.once("terminated", resolve);
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19222 });
+        new Promise<void>(async resolve => {
+            await dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome" });
+            resolve();
         })
     ]);
-});
+}, 20000);
 
-test('should hit breakpoint', () => {
+test('should hit breakpoint on chrome', () => {
     const breakPoint = {
         path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
         line: 3
@@ -39,7 +47,7 @@ test('should hit breakpoint', () => {
                 console.log(response);
                 resolve();
             });
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19222 });
+            dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome" });
         })     
     ]);
-});
+}, 20000);
