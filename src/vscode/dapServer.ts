@@ -149,7 +149,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 					resolve(true);
 				});
 			});
-		};
+		}
 
 		async function checkEndpoint() {
 			// https://github.com/bbc/a11y-tests-web/pull/62
