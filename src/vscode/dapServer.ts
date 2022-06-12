@@ -206,13 +206,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				// TODO: forward launched process log messages to vscode
 				launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
 				launchedProcess.stderr?.on('data', (d: Buffer) => { 
-					const text = d.toString().trim();
+					const text = d.toString();
 
-					this.sendEvent(new OutputEvent(text, 'stderr')) 
+					this.sendEvent(new OutputEvent(text, 'stderr')) ;
 
 					// FIXME
-					if (text == "Waiting for the debugger to disconnect...") {
-						void this.terminate(undefined, launchedProcess);
+					if (text.trim() === "Waiting for the debugger to disconnect...") {
+						void this.terminate(client, launchedProcess);
 					}
 				});
 
