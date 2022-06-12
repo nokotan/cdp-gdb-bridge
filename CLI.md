@@ -23,8 +23,8 @@ Start Loading http://localhost:8080/index.wasm...
 
 ## Supported Commands
 
-| Syntax | |
-|:--:|:--:|
+| Syntax | Action |
+| :--: | :--: |
 | r (url) | Jump to url |
 | b (FileName):(LineNumber) | Set Breakpoint |
 | d (breakpoint ID) | Delete Breakpoint |

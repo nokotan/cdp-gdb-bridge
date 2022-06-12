@@ -46,14 +46,14 @@ Start Loading http://localhost:8080/index.wasm...
 ### Implemented Features
 
 - BreakPoints
-- Variable Value Dump
+- Variable Value Inspection
 
 ### Support Status
 
-|| Windows | macOS | Linux |
-| :--: | :--: | :--: | :--: |
-| node.js | ✅ | ✅ | ✅ |
-| Chrome | ✅ | ✅ | ✅ |
-| FireFox | ❌ | ❌ | ❌ |
-| Safari | - | ❌ | - |
-| Edge | ❌ | - | - |
+| | Windows | macOS | Linux | Support Version |
+| :--: | :--: | :--: | :--: | :--: |
+| node.js | ✅ | ✅ | ✅ | v16.0+ |
+| Chrome | ✅ | ✅ | ✅ | v64+ |
+| FireFox | ❌ | ❌ | ❌ | |
+| Safari | - | ❌ | - | |
+| Edge | ❌ | - | - | |
