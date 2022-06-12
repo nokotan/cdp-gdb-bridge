@@ -201,19 +201,28 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			case 'wasm-node': {
 				const nodeExecitable = args.node || "node";
 				const launchedProcess = spawn(nodeExecitable, [ `--inspect-brk=${port}`, args.program! ], { cwd: args.cwd });
+				let textBuffer = "";
 				
 				launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
 				launchedProcess.stderr?.on('data', (d: Buffer) => { 
-					const text = d.toString();
+					textBuffer += d.toString();
 
-					this.sendEvent(new OutputEvent(text, 'stderr')) ;
+					const splitText = textBuffer.split("\n");
 
-					// FIXME
-					if (text.trim() === "Waiting for the debugger to disconnect...") {
-						void this.terminate(client, launchedProcess);
+					while (splitText.length > 1) {
+						const text = splitText.shift() || "";
+
+						this.sendEvent(new OutputEvent(text, 'stderr')) ;
+
+						// FIXME
+						if (text.trim() === "Waiting for the debugger to disconnect...") {
+							void this.terminate(client, launchedProcess);
+						}
 					}
+
+					textBuffer = splitText[0];
 				});
 
 				this.launchedProcess = launchedProcess;
