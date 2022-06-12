@@ -20,8 +20,16 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-
       - run: npm install
+
+      - uses: Swatinem/rust-cache@v1
+      - name: Setup Rust
+        uses: ATiltedTree/setup-rust@v1
+        with:
+          rust-version: stable
+      - run: cargo install wasm-pack
+
+      - run: npm run build-crate
       - run: npm run lint
 
   build:
