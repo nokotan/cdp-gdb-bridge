@@ -10,6 +10,20 @@ on:
     branches: [ main ]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - run: npm install
+      - run: npm run lint
+
   build:
     strategy:
       fail-fast: false
@@ -33,6 +47,7 @@ jobs:
           cache: 'npm'
       - run: npm install
 
+      - uses: Swatinem/rust-cache@v1
       - name: Setup Rust
         uses: ATiltedTree/setup-rust@v1
         with:
@@ -40,4 +55,3 @@ jobs:
       - run: cargo install wasm-pack
 
       - run: npm run test
-      - run: npm run lint
