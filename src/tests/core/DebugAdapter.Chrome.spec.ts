@@ -47,7 +47,7 @@ test('should hit breakpoint on chrome', () => {
                 console.log(response);
                 resolve();
             });
-            dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19102, flags: [ "--headless", "--disable-gpu" ] });
+            dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19102, flags: [ "--headless", "--disable-gpu", "--no-sandbox" ] });
         })     
     ]);
 }, 20000);

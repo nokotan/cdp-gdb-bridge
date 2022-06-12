@@ -13,6 +13,7 @@ import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
 import { ChildProcess, spawn } from 'child_process';
 import { createConnection } from 'net';
+import fetch from 'node-fetch';
 
 /**
  * This interface describes the wasm specific launch attributes
@@ -129,6 +130,61 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.sendResponse(response);
 	}
 
+	private async waitForInspectableTarget(port: number) {
+		function checkPort() {
+			return new Promise<boolean>(resolve => {
+				const client = createConnection(port);
+				client.once('error', _ => {
+					client.removeAllListeners();
+					client.end();
+					client.destroy();
+					client.unref();
+					resolve(false);
+				});
+				client.once('connect', () => {
+					client.removeAllListeners();
+					client.end();
+					client.destroy();
+					client.unref();
+					resolve(true);
+				});
+			});
+		};
+
+		async function checkEndpoint() {
+			// https://github.com/bbc/a11y-tests-web/pull/62
+			const rawResponse = await fetch(`http://127.0.0.1:${port}/json/list`);
+			const targets = await rawResponse.json() as unknown[];
+			return targets.length > 0;
+		}
+
+		function sleep(milliSecond: number) {
+			return new Promise<void>((resolve, _) => {
+				setTimeout(resolve, milliSecond)
+			});
+		}
+
+		let attempt = 0;
+
+		while (!await checkPort()) {
+			await sleep(500);
+			
+			if (attempt++ > 10) {
+				throw new Error("Target port timeout");
+			}
+		}
+
+		attempt = 0;
+		
+		while (!await checkEndpoint()) {
+			await sleep(500);
+			
+			if (attempt++ > 10) {
+				throw new Error("Target port timeout");
+			}
+		}
+	}
+
     protected async launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArgument) {
 		const port = args.port || 9222;
 
@@ -161,32 +217,11 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				});
 
 				this.launchedProcess = launchedProcess;
-				
-				// TODO: check if node process is launched.
-				await new Promise<void>((resolve, _) => {
-					setTimeout(resolve, 1000)
-				});
-
-				await new Promise<void>((resolve, reject) => {
-					const client = createConnection(port);
-					client.once('error', err => {
-						client.removeAllListeners();
-						client.end();
-						client.destroy();
-						client.unref();
-						reject(err);
-					});
-					client.once('connect', () => {
-						client.removeAllListeners();
-						client.end();
-						client.destroy();
-						client.unref();
-						resolve();
-					});
-				});
 				break;
 			}		
 		}		
+
+		await this.waitForInspectableTarget(port);
 
         // connect to endpoint
 		const client = await CDP({

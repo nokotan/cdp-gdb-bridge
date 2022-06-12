@@ -38,6 +38,7 @@
     "bufferutil": "^4.0.3",
     "chrome-launcher": "^0.14.0",
     "chrome-remote-interface": "^0.31.0",
+    "node-fetch": "^3.2.6",
     "utf-8-validate": "^5.0.5"
   },
   "devDependencies": {
