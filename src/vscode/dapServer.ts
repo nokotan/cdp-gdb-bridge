@@ -13,7 +13,7 @@ import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
 import { ChildProcess, spawn } from 'child_process';
 import { createConnection } from 'net';
-import fetch from 'node-fetch';
+import fetch from 'node-fetch-commonjs';
 
 /**
  * This interface describes the wasm specific launch attributes
