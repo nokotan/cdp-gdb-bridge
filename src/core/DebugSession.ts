@@ -4,9 +4,9 @@ import {
 	StoppedEvent, BreakpointEvent, ContinuedEvent
 } from 'vscode-debugadapter';
 import { WebAssemblyFile } from "./Source"
-import { DwarfDebugSymbolContainer } from "../../crates/dwarf/pkg";
+import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
-import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint, FileLocation } from './DebugCommand';
+import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint, FileLocation, RuntimeStackFrame } from './DebugCommand';
 import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
 import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
 
@@ -107,6 +107,9 @@ export class DebugSessionManager implements DebuggerCommand {
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
     private scriptParsed?: Promise<void>;
 
+    private steppingOver: boolean = false;
+    private steppingIn: boolean = false;
+
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
       
@@ -127,14 +130,16 @@ export class DebugSessionManager implements DebuggerCommand {
     }
 
     async stepOver() {
+        this.steppingOver = true;
         await this.sessionState.stepOver();
     }
 
     async stepIn() {
+        this.steppingIn = true;
         await this.sessionState.stepIn();
     }
 
-    async stepOut() {
+    async stepOut() {   
         await this.sessionState.stepOut();
     }
 
@@ -308,6 +313,8 @@ export class DebugSessionManager implements DebuggerCommand {
         }
     }
 
+    private lastPausedLocation?: RuntimeStackFrame;
+
     private async onPaused(e: Protocol.Debugger.PausedEvent) {
         if (e.reason.startsWith("Break on start")) {
             await this.debugger?.resume({});
@@ -338,6 +345,21 @@ export class DebugSessionManager implements DebuggerCommand {
                 }
             };
         });
+
+        if ((this.steppingOver || this.steppingIn)
+            && this.lastPausedLocation?.stack.file == stackFrames[0].stack.file
+            && this.lastPausedLocation?.stack.line == stackFrames[0].stack.line) {
+
+            if (this.steppingOver) {
+                void this.debugger?.stepOver({});
+            } else {
+                void this.debugger?.stepInto({});
+            }
+        } else {
+            this.steppingOver = false;
+            this.steppingIn = false;
+            this.lastPausedLocation = stackFrames[0];
+        }
 
         this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
         this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
