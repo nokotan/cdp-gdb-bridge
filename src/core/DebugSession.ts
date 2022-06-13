@@ -107,8 +107,8 @@ export class DebugSessionManager implements DebuggerCommand {
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
     private scriptParsed?: Promise<void>;
 
-    private steppingOver: boolean = false;
-    private steppingIn: boolean = false;
+    private steppingOver = false;
+    private steppingIn = false;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
@@ -359,10 +359,10 @@ export class DebugSessionManager implements DebuggerCommand {
             this.steppingOver = false;
             this.steppingIn = false;
             this.lastPausedLocation = stackFrames[0];
-        }
 
-        this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
-        this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
+            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
+            this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
+        }
     }
 
     private onResumed() {

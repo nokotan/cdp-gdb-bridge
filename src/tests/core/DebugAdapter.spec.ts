@@ -13,33 +13,63 @@ afterAll(() => {
 
 test('should run program to the end', () => {
     return Promise.all([
-        dc.initializeRequest(),
-        new Promise(resolve => {
-            dc.once("terminated", resolve);
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19201 });
-        })
+        dc.waitForEvent("terminated"),
+        dc.launch({ program: "tests/app/Main.js", type: "wasm-node", port: 19201 })
     ]);
 });
 
-test('should hit breakpoint', () => {
+test('should hit breakpoint', async () => {
     const breakPoint = {
         path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
         line: 3
     };
-    return Promise.all([
-        dc.initializeRequest(),
-        dc.setBreakpointsRequest(
-            { 
-                lines: [ breakPoint.line ],
-                source: { path: breakPoint.path },
-                breakpoints: [ { line: breakPoint.line } ] 
-            }),
-        new Promise<void>(resolve => {
-            dc.once("stopped", response => {
-                console.log(response);
-                resolve();
-            });
-            dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 });
-        })     
+    await Promise.all([
+        dc.waitForEvent("initialized"),
+        dc.initializeRequest()
+    ]);
+    await dc.setBreakpointsRequest({ 
+        lines: [ breakPoint.line ],
+        source: { path: breakPoint.path },
+        breakpoints: [ { line: breakPoint.line } ] 
+    });
+    await Promise.all([
+        dc.assertStoppedLocation("BreakPointMapping", breakPoint),
+        dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 })
+    ]);
+    await Promise.all([           
+        dc.waitForEvent("terminated"),
+        dc.terminateRequest({})
+    ]);
+});
+
+test('should step line by line', async () => {
+    const breakPoint = {
+        path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
+        line: 3
+    };
+  
+    await Promise.all([
+        dc.waitForEvent("initialized"),
+        dc.initializeRequest()
+    ]);
+    await dc.setBreakpointsRequest({ 
+        lines: [ breakPoint.line ],
+        source: { path: breakPoint.path },
+        breakpoints: [ { line: breakPoint.line } ] 
+    });
+    await Promise.all([
+        dc.waitForEvent("stopped"),
+        dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 })
+    ]);
+    await Promise.all([           
+        dc.assertStoppedLocation("BreakPointMapping", {
+            path: breakPoint.path,
+            line: breakPoint.line + 1
+        }),
+        dc.nextRequest({ threadId: 1 })
+    ]);
+    await Promise.all([           
+        dc.waitForEvent("terminated"),
+        dc.terminateRequest({})
     ]);
 });
