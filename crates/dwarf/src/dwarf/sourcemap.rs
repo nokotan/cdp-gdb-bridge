@@ -88,7 +88,7 @@ pub fn transform_debug_line(
         let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
         let mut path = dir_path.join(convert_from_windows_stype_path(&path));
 
-        if !is_absolute_path(&path.to_str().unwrap_or("")) {
+        if !is_absolute_path(path.to_str().unwrap_or("")) {
             if let Some(comp_dir) = unit.comp_dir.clone() {
                 let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
                 let comp_dir = convert_from_windows_stype_path(&comp_dir);
@@ -105,7 +105,7 @@ pub fn transform_debug_line(
     let mut rows = program.rows();
     let mut sorted_rows = BTreeMap::new();
     while let Some((_, row)) = rows.next_row()? {
-        sorted_rows.insert(row.address(), row.clone());
+        sorted_rows.insert(row.address(), *row);
 
         match file_sorted_rows.get_mut(&(row.file_index() as usize)) {
             Some(x) => {
@@ -114,7 +114,7 @@ pub fn transform_debug_line(
                         Some(x) => x.get(),
                         None => 0,
                     },
-                    row.clone(),
+                    *row,
                 );
             }
             None => {}
@@ -180,7 +180,7 @@ impl DwarfSourceMap {
             let path = unit.paths;
 
             for (addr, row) in &unit.address_sorted_rows {
-                let line_info = transform_lineinfo(&row, &path);
+                let line_info = transform_lineinfo(row, &path);
                 address_rows.insert(*addr, line_info);
             }
             for (file_index, vec) in unit.file_sorted_rows {
@@ -201,7 +201,7 @@ impl DwarfSourceMap {
         self.directory_map.borrow_mut().insert(from, to);
     }
 
-    fn update_file_sorted_rows(&mut self, offset: DebugLineOffset) {}
+    fn update_file_sorted_rows(&mut self, _offset: DebugLineOffset) {}
 
     pub fn find_line_info(&self, offset: usize) -> Option<LineInfo> {
         let mut line_info = match self
@@ -242,7 +242,7 @@ impl DwarfSourceMap {
                 if i > 0 {
                     Some(line_vec[i - 1].1.address() as usize)
                 } else {
-                    return None;
+                    None
                 }
             }
         }

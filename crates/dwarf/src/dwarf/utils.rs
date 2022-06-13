@@ -31,7 +31,7 @@ pub(crate) fn clone_string_attribute<R: gimli::Reader>(
 }
 
 pub(crate) fn convert_from_windows_stype_path(path: &String) -> String {
-    let backslash_escaped = path.replace("\\", "/");
+    let backslash_escaped = path.replace('\\', "/");
     let regex = Regex::new("^([A-Za-z]):/");
     regex
         .unwrap()
@@ -43,11 +43,11 @@ pub(crate) fn convert_from_windows_stype_path(path: &String) -> String {
 
 pub(crate) fn is_absolute_path(path: &str) -> bool {
     let regex = Regex::new("^([A-Za-z]):/").unwrap();
-    path.starts_with("/") | regex.is_match(path)
+    path.starts_with('/') | regex.is_match(path)
 }
 
 pub(crate) fn normalize_path(path: &String) -> String {
-    let splited = path.split("/");
+    let splited = path.split('/');
     let mut stack = Vec::new();
 
     for component in splited {

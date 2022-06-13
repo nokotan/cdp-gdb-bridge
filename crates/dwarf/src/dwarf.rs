@@ -66,7 +66,7 @@ impl DwarfDebugData {
             Ok(EndianRcSlice::new(data, LittleEndian))
         };
 
-        Ok(Dwarf::load(&load_section)?)
+        Dwarf::load(&load_section)
     }
 
     pub fn unit_offset(&self, offset: UnitSectionOffset) -> Result<Option<(Dwarf, DwarfUnit)>> {
@@ -124,9 +124,7 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
             subroutines,
             dwarf_data: dwarf_data.clone(),
         },
-        global_variables: DwarfGlobalVariables {
-            dwarf_data: dwarf_data,
-        },
+        global_variables: DwarfGlobalVariables { dwarf_data },
     })
 }
 
@@ -142,7 +140,7 @@ fn header_from_offset<R: gimli::Reader>(
             continue;
         }
     }
-    return Ok(None);
+    Ok(None)
 }
 
 fn unit_type_name<R: gimli::Reader>(
@@ -241,16 +239,16 @@ impl VariableInfo {
             }
         }
 
-        if self.address_expr.len() == 0 {
+        if self.address_expr.is_empty() {
             self.state = VariableEvaluationResult::Complete;
 
-            return match format_object(self) {
+            match format_object(self) {
                 Ok(x) => Some(x),
                 Err(_) => None,
-            };
+            }
         } else {
             self.evaluate_internal();
-            return None;
+            None
         }
     }
 
@@ -274,16 +272,16 @@ impl VariableInfo {
 
         self.memory_slice = memory;
 
-        if self.address_expr.len() == 0 {
+        if self.address_expr.is_empty() {
             self.state = VariableEvaluationResult::Complete;
 
-            return match format_object(self) {
+            match format_object(self) {
                 Ok(x) => Some(x),
                 Err(_) => None,
-            };
+            }
         } else {
             self.evaluate_internal();
-            return None;
+            None
         }
     }
 
@@ -291,7 +289,7 @@ impl VariableInfo {
         let mut address = 0;
         let mut byte_size = self.byte_size;
 
-        while self.address_expr.len() != 0 {
+        while !self.address_expr.is_empty() {
             match self.address_expr.remove(0) {
                 VariableLocation::Address(addr) => {
                     address = addr;

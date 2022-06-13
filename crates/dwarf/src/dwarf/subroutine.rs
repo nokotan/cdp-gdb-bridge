@@ -6,7 +6,7 @@ use super::variables::{
     evaluate_variable_from_string, variables_in_unit_entry, FrameBase, TypeDescripter, VariableName,
 };
 use super::wasm_bindings::{Value, WasmValueVector};
-use super::{error, unit_type_name, DwarfDebugData, DwarfReader, DwarfReaderOffset, VariableInfo};
+use super::{unit_type_name, DwarfDebugData, DwarfReader, DwarfReaderOffset, VariableInfo};
 
 #[derive(Clone)]
 pub enum WasmLoc {
@@ -112,7 +112,7 @@ pub fn read_subprogram_header(
             pc: low_pc..high_pc,
             name,
             encoding: unit.encoding(),
-            unit_offset: unit_offset,
+            unit_offset,
             entry_offset: node.entry().offset(),
             frame_base,
         }
@@ -155,14 +155,9 @@ impl DwarfSubroutineMap {
     pub fn find_subroutine(&self, code_offset: usize) -> Result<&Subroutine> {
         let offset = code_offset as u64;
 
-        match self
-            .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(&offset))
-            .next()
-        {
+        match self.subroutines.iter().find(|s| s.pc.contains(&offset)) {
             Some(s) => Ok(s),
-            None => return Err(anyhow!("failed to determine subroutine")),
+            None => Err(anyhow!("failed to determine subroutine")),
         }
     }
 
@@ -214,7 +209,7 @@ impl DwarfSubroutineMap {
 
     fn get_frame_base(&self, code_offset: usize) -> Result<Option<WasmLoc>> {
         let subroutine = self.find_subroutine(code_offset)?;
-        return Ok(subroutine.frame_base.clone());
+        Ok(subroutine.frame_base.clone())
     }
     fn display_variable(
         &self,

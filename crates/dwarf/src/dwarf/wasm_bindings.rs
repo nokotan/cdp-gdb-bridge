@@ -83,10 +83,7 @@ impl WasmLineInfo {
     pub(crate) fn from_line_info(info: &LineInfo) -> Self {
         Self {
             filepath: info.filepath.clone(),
-            line: match info.line {
-                Some(x) => Some(x as usize),
-                None => None,
-            },
+            line: info.line.map(|x| x as usize),
             column: match info.column {
                 ColumnType::Column(x) => Some(x as usize),
                 ColumnType::LeftEdge => None,
@@ -97,10 +94,7 @@ impl WasmLineInfo {
     pub(crate) fn into_line_info(info: &WasmLineInfo) -> LineInfo {
         LineInfo {
             filepath: info.filepath.clone(),
-            line: match info.line {
-                Some(x) => Some(x as u64),
-                None => None,
-            },
+            line: info.line.map(|x| x as u64),
             column: match info.column {
                 Some(x) => ColumnType::Column(x as u64),
                 None => ColumnType::LeftEdge,

@@ -29,22 +29,18 @@ impl DwarfDebugSymbolContainer {
     }
 
     pub fn find_file_info_from_address(&self, instruction_offset: usize) -> Option<WasmLineInfo> {
-        match self
-            .debug_info
+        self.debug_info
             .sourcemap
             .find_line_info(instruction_offset - self.code_base)
-        {
-            Some(x) => Some(WasmLineInfo::from_line_info(&x)),
-            None => None,
-        }
+            .map(|x| WasmLineInfo::from_line_info(&x))
     }
 
     pub fn find_address_from_file_info(&self, info: &WasmLineInfo) -> Option<usize> {
         let file_info = WasmLineInfo::into_line_info(info);
-        match self.debug_info.sourcemap.find_address(&file_info) {
-            Some(x) => Some(x + self.code_base),
-            None => None,
-        }
+        self.debug_info
+            .sourcemap
+            .find_address(&file_info)
+            .map(|x| x + self.code_base)
     }
 
     pub fn variable_name_list(&self, instruction_offset: usize) -> Option<VariableVector> {
@@ -139,7 +135,7 @@ impl DwarfDebugSymbolContainer {
 fn calculate_code_base(data: &[u8]) -> Result<(usize, usize)> {
     let parser = Parser::new(0);
     let mut code_section_offset = 0;
-    let mut data_section_offset = 0;
+    let data_section_offset = 0;
 
     for payload in parser.parse_all(data) {
         match payload? {

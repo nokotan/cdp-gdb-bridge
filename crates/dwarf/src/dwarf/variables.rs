@@ -101,7 +101,7 @@ fn variables_in_unit_entry_recursive(
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let mut var = transform_variable(&dwarf, &unit, child.entry(), root_group_id)?;
+                let mut var = transform_variable(dwarf, unit, child.entry(), root_group_id)?;
                 structure_variable_recursive(child, dwarf, unit, &mut var, variables, group_id)?;
                 variables.push(var);
             }
@@ -133,7 +133,7 @@ fn variables_in_unit_entry_recursive(
                 }
             }
             gimli::DW_TAG_namespace => {
-                let mut var = transform_namespace(&dwarf, &unit, child.entry(), root_group_id)?;
+                let mut var = transform_namespace(dwarf, unit, child.entry(), root_group_id)?;
                 var.child_group_id = Some(*group_id);
                 variables_in_unit_entry_recursive(
                     child,
@@ -171,7 +171,7 @@ fn structure_variable_recursive(
                 match child.entry().tag() {
                     gimli::DW_TAG_member => {
                         let mut var =
-                            transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
+                            transform_variable(dwarf, unit, child.entry(), current_group_id)?;
 
                         let mut contents = parent_variable.contents.clone();
                         contents.append(&mut var.contents);
@@ -379,7 +379,7 @@ pub fn evaluate_variable_from_string(
                 AttributeValue::Exprloc(expr) => {
                     let piece =
                         evaluate_variable_location(unit.encoding(), &frame_base, expr.clone())?;
-                    let piece = match piece.iter().next() {
+                    let piece = match piece.get(0) {
                         Some(p) => p,
                         None => {
                             println!("failed to get piece of variable");
@@ -420,13 +420,8 @@ pub fn evaluate_variable_from_string(
             let mut tree = unit.entries_tree(Some(UnitOffset(*offset)))?;
             let root = tree.root()?;
 
-            return match create_variable_info(
-                root,
-                calculated_address,
-                constant_data,
-                &dwarf,
-                &unit,
-            ) {
+            return match create_variable_info(root, calculated_address, constant_data, dwarf, unit)
+            {
                 Ok(x) => Ok(Some(x)),
                 Err(e) => {
                     console_log!("{}", e);
@@ -488,7 +483,7 @@ fn create_variable_info<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R>,
 ) -> Result<VariableInfo> {
-    let data = const_data.unwrap_or(Vec::new());
+    let data = const_data.unwrap_or_default();
 
     match node.entry().tag() {
         gimli::DW_TAG_base_type => {
@@ -623,7 +618,7 @@ impl DwarfGlobalVariables {
         opts: &String,
         unit_offset: UnitSectionOffset,
         data_base: usize,
-        globals: &WasmValueVector,
+        _globals: &WasmValueVector,
     ) -> Result<Option<VariableInfo>> {
         self.display_variable(unit_offset, FrameBase::WasmDataBase(data_base as u64), opts)
     }
