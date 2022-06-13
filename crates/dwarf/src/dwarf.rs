@@ -1,32 +1,28 @@
-use wasm_bindgen::prelude::*;
-use wasmparser::{
-    Parser, Payload
-};
-use std::collections::{HashMap};
-use gimli::{
-    EndianRcSlice, LittleEndian, 
-    Unit, UnitOffset, Reader,
-    UnitSectionOffset, UnitHeader,
-    AttributeValue
-};
 use anyhow::{anyhow, Result};
-use std::rc::{Rc};
-use num_bigint::{BigUint};
+use gimli::{
+    AttributeValue, EndianRcSlice, LittleEndian, Reader, Unit, UnitHeader, UnitOffset,
+    UnitSectionOffset,
+};
+use num_bigint::BigUint;
+use std::collections::HashMap;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
+use wasmparser::{Parser, Payload};
 
 pub mod sourcemap;
 pub mod subroutine;
+pub mod utils;
 pub mod variables;
 pub mod wasm_bindings;
-pub mod utils;
 
 mod format;
 
-use sourcemap::{ DwarfSourceMap, transform_debug_line };
-use subroutine::{ DwarfSubroutineMap, transform_subprogram };
-use variables::{ DwarfGlobalVariables, VariableLocation };
-use format::{ format_object };
-use utils::{ clone_string_attribute, error };
-use crate::{ console_log };
+use crate::console_log;
+use format::format_object;
+use sourcemap::{transform_debug_line, DwarfSourceMap};
+use subroutine::{transform_subprogram, DwarfSubroutineMap};
+use utils::{clone_string_attribute, error};
+use variables::{DwarfGlobalVariables, VariableLocation};
 
 /// Dwarf reader definitions for wasm-dwarf-alanyser
 pub type DwarfReader = EndianRcSlice<LittleEndian>;
@@ -41,7 +37,6 @@ pub struct DwarfDebugData {
 }
 
 impl DwarfDebugData {
-
     /// Load webassembly binary and copy custom section data
     pub fn new(wasm_binary: &[u8]) -> Result<Self> {
         let parser = Parser::new(0);
@@ -54,15 +49,14 @@ impl DwarfDebugData {
                 }
                 _ => continue,
             }
-        };
+        }
 
         Ok(Self {
-            program_raw_data: sections
+            program_raw_data: sections,
         })
     }
 
     pub fn parse_dwarf(&self) -> Result<Dwarf> {
-
         let load_section = |id: gimli::SectionId| -> Result<DwarfReader> {
             let data = match self.program_raw_data.get(id.name()) {
                 Some(section) => section.clone(),
@@ -103,7 +97,7 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
     let mut entry_num = 0;
-    
+
     while let Some(header) = headers.next()? {
         let header_offset = header.offset();
         let unit = dwarf.unit(header)?;
@@ -128,11 +122,11 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
         sourcemap: DwarfSourceMap::new(sourcemaps, dwarf_data.clone()),
         subroutine: DwarfSubroutineMap {
             subroutines,
-            dwarf_data: dwarf_data.clone()
+            dwarf_data: dwarf_data.clone(),
         },
         global_variables: DwarfGlobalVariables {
-            dwarf_data: dwarf_data
-        }
+            dwarf_data: dwarf_data,
+        },
     })
 }
 
@@ -172,9 +166,11 @@ fn unit_type_name<R: gimli::Reader>(
             } else {
                 Ok(String::from("<no-type-name>"))
             }
-        },
+        }
         _ => {
-            if let Some(AttributeValue::UnitRef(ref offset)) = root.entry().attr_value(gimli::DW_AT_type)? {
+            if let Some(AttributeValue::UnitRef(ref offset)) =
+                root.entry().attr_value(gimli::DW_AT_type)?
+            {
                 unit_type_name(dwarf, unit, Some(offset.0))
             } else {
                 Err(anyhow!(format!("failed to seek at {:?}", type_offset)))
@@ -198,7 +194,7 @@ impl MemorySlice {
         Self {
             address: 0,
             byte_size: 0,
-            memory_slice: Vec::new()
+            memory_slice: Vec::new(),
         }
     }
 
@@ -206,7 +202,7 @@ impl MemorySlice {
         Self {
             address: 0,
             byte_size: data.len(),
-            memory_slice: data
+            memory_slice: data,
         }
     }
 
@@ -218,14 +214,14 @@ impl MemorySlice {
 enum VariableEvaluationResult {
     Ready,
     Complete,
-    RequireMemorySlice(MemorySlice)
+    RequireMemorySlice(MemorySlice),
 }
 
 #[wasm_bindgen]
 pub struct VariableInfo {
     name: String,
-   
-    pub(crate) address_expr: Vec<VariableLocation>, 
+
+    pub(crate) address_expr: Vec<VariableLocation>,
     pub(crate) byte_size: usize,
     pub(crate) memory_slice: MemorySlice,
 
@@ -237,11 +233,12 @@ pub struct VariableInfo {
 
 #[wasm_bindgen]
 impl VariableInfo {
-
     pub fn evaluate(&mut self) -> Option<String> {
         match self.state {
-            VariableEvaluationResult::Ready => {},
-            _ => { return None; }
+            VariableEvaluationResult::Ready => {}
+            _ => {
+                return None;
+            }
         }
 
         if self.address_expr.len() == 0 {
@@ -249,7 +246,7 @@ impl VariableInfo {
 
             return match format_object(self) {
                 Ok(x) => Some(x),
-                Err(_) => None
+                Err(_) => None,
             };
         } else {
             self.evaluate_internal();
@@ -259,15 +256,20 @@ impl VariableInfo {
 
     pub fn resume_with_memory_slice(&mut self, memory: MemorySlice) -> Option<String> {
         match self.state {
-            VariableEvaluationResult::RequireMemorySlice(_) => {},
-            _ => { return None; }
+            VariableEvaluationResult::RequireMemorySlice(_) => {}
+            _ => {
+                return None;
+            }
         }
 
         if let Some(VariableLocation::Pointer) = self.address_expr.first() {
             self.address_expr.remove(0);
-            self.address_expr.insert(0, VariableLocation::Address(
-                BigUint::from_bytes_le(&memory.memory_slice).to_u64_digits()[0]
-            ));
+            self.address_expr.insert(
+                0,
+                VariableLocation::Address(
+                    BigUint::from_bytes_le(&memory.memory_slice).to_u64_digits()[0],
+                ),
+            );
         }
 
         self.memory_slice = memory;
@@ -277,7 +279,7 @@ impl VariableInfo {
 
             return match format_object(self) {
                 Ok(x) => Some(x),
-                Err(_) => None
+                Err(_) => None,
             };
         } else {
             self.evaluate_internal();
@@ -291,24 +293,22 @@ impl VariableInfo {
 
         while self.address_expr.len() != 0 {
             match self.address_expr.remove(0) {
-                VariableLocation::Address(addr) => { 
-                    address = addr; 
+                VariableLocation::Address(addr) => {
+                    address = addr;
                 }
-                VariableLocation::Offset(off) => {
-                    address = (address as i64 + off) as u64 
-                },
+                VariableLocation::Offset(off) => address = (address as i64 + off) as u64,
                 VariableLocation::Pointer => {
                     byte_size = 4;
                     self.address_expr.insert(0, VariableLocation::Pointer);
                     break;
                 }
             }
-        };
+        }
 
         let slice = MemorySlice {
             address: address as usize,
             byte_size,
-            memory_slice: Vec::new()
+            memory_slice: Vec::new(),
         };
 
         self.memory_slice = slice.clone();
@@ -318,14 +318,14 @@ impl VariableInfo {
     pub fn is_required_memory_slice(&self) -> bool {
         match self.state {
             VariableEvaluationResult::RequireMemorySlice(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_completed(&self) -> bool {
         match self.state {
             VariableEvaluationResult::Complete => true,
-            _ => false
+            _ => false,
         }
     }
 

@@ -1,13 +1,12 @@
-use gimli::{
-    UnitOffset, Unit,
-    AttributeValue, UnitSectionOffset
-};
 use anyhow::{anyhow, Result};
+use gimli::{AttributeValue, Unit, UnitOffset, UnitSectionOffset};
 
-use super::{ DwarfReader, DwarfReaderOffset, VariableInfo, DwarfDebugData, unit_type_name, error };
-use super::variables::{ FrameBase, VariableName, TypeDescripter, variables_in_unit_entry, evaluate_variable_from_string };
-use super::utils::{ clone_string_attribute };
-use super::wasm_bindings::{ WasmValueVector, Value };
+use super::utils::clone_string_attribute;
+use super::variables::{
+    evaluate_variable_from_string, variables_in_unit_entry, FrameBase, TypeDescripter, VariableName,
+};
+use super::wasm_bindings::{Value, WasmValueVector};
+use super::{error, unit_type_name, DwarfDebugData, DwarfReader, DwarfReaderOffset, VariableInfo};
 
 #[derive(Clone)]
 pub enum WasmLoc {
@@ -96,7 +95,7 @@ pub fn read_subprogram_header(
             Some(x) => unreachable!("high_pc can't be {:?}", x),
             None => return Ok(None),
         };
-        
+
         let size = high_pc - low_pc;
 
         if size <= 0 {
@@ -153,7 +152,6 @@ pub struct DwarfSubroutineMap {
 }
 
 impl DwarfSubroutineMap {
-
     pub fn find_subroutine(&self, code_offset: usize) -> Result<&Subroutine> {
         let offset = code_offset as u64;
 
@@ -168,19 +166,24 @@ impl DwarfSubroutineMap {
         }
     }
 
-    pub fn variable_name_list(&self, code_offset: usize, group_id: i32) -> Result<Vec<VariableName>> {
+    pub fn variable_name_list(
+        &self,
+        code_offset: usize,
+        group_id: i32,
+    ) -> Result<Vec<VariableName>> {
         let offset = code_offset as u64;
         let subroutine = self.find_subroutine(code_offset)?;
 
         let (dwarf, unit) = match self.dwarf_data.unit_offset(subroutine.unit_offset)? {
             Some(x) => x,
-            None => { 
+            None => {
                 return Ok(Vec::new());
             }
         };
 
         let entry_offset = subroutine.entry_offset;
-        let variables = variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, group_id)?;
+        let variables =
+            variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, group_id)?;
 
         Ok(variables
             .iter()
@@ -189,7 +192,7 @@ impl DwarfSubroutineMap {
                     name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
                     group_id: var.group_id,
-                    child_group_id: var.child_group_id
+                    child_group_id: var.child_group_id,
                 };
                 if let Some(ref name) = var.name {
                     v.name = name.clone();
@@ -199,7 +202,7 @@ impl DwarfSubroutineMap {
                         if let Ok(ty_name) = unit_type_name(&dwarf, &unit, Some(*offset)) {
                             v.type_name = ty_name;
                         }
-                    },
+                    }
                     TypeDescripter::Description(desc) => {
                         v.type_name = desc.clone();
                     }
@@ -223,7 +226,7 @@ impl DwarfSubroutineMap {
         let subroutine = self.find_subroutine(code_offset)?;
         let (dwarf, unit) = match self.dwarf_data.unit_offset(subroutine.unit_offset)? {
             Some(x) => x,
-            None => { 
+            None => {
                 return Ok(None);
             }
         };
@@ -234,23 +237,26 @@ impl DwarfSubroutineMap {
     }
 
     pub fn get_variable_info(
-        &self, 
+        &self,
         opts: &String,
         locals: &WasmValueVector,
         globals: &WasmValueVector,
         stacks: &WasmValueVector,
-        code_offset: usize) -> Result<Option<VariableInfo>> {
-    
+        code_offset: usize,
+    ) -> Result<Option<VariableInfo>> {
         let frame_base = match self.get_frame_base(code_offset)? {
             Some(loc) => {
                 let offset = match loc {
-                    WasmLoc::Global(idx) => globals.data
+                    WasmLoc::Global(idx) => globals
+                        .data
                         .get(idx as usize)
                         .ok_or(anyhow!("failed to get base global"))?,
-                    WasmLoc::Local(idx) => locals.data
+                    WasmLoc::Local(idx) => locals
+                        .data
                         .get(idx as usize)
                         .ok_or(anyhow!("failed to get base local"))?,
-                    WasmLoc::Stack(idx) => stacks.data
+                    WasmLoc::Stack(idx) => stacks
+                        .data
                         .get(idx as usize)
                         .ok_or(anyhow!("failed to get base stack"))?,
                 };
@@ -278,11 +284,7 @@ impl DwarfSubroutineMap {
                 // FrameBase::RBP(offset)
             }
         };
-        
-        self.display_variable(
-            code_offset,
-            frame_base,
-            opts
-        )
+
+        self.display_variable(code_offset, frame_base, opts)
     }
 }

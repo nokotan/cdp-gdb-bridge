@@ -1,6 +1,6 @@
 use anyhow::Result;
 use gimli;
-use regex::{Regex,Captures};
+use regex::{Captures, Regex};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -30,17 +30,15 @@ pub(crate) fn clone_string_attribute<R: gimli::Reader>(
         .to_string())
 }
 
-pub(crate) fn convert_from_windows_stype_path(
-    path: &String
-) -> String {
+pub(crate) fn convert_from_windows_stype_path(path: &String) -> String {
     let backslash_escaped = path.replace("\\", "/");
     let regex = Regex::new("^([A-Za-z]):/");
-    regex.unwrap().replace_all(
-        &backslash_escaped, 
-        |captured: &Captures| {
+    regex
+        .unwrap()
+        .replace_all(&backslash_escaped, |captured: &Captures| {
             format!("{}:/", captured[1].to_lowercase())
-        }
-    ).into_owned()
+        })
+        .into_owned()
 }
 
 pub(crate) fn is_absolute_path(path: &str) -> bool {
@@ -48,9 +46,7 @@ pub(crate) fn is_absolute_path(path: &str) -> bool {
     path.starts_with("/") | regex.is_match(path)
 }
 
-pub(crate) fn normalize_path(
-    path: &String
-) -> String {
+pub(crate) fn normalize_path(path: &String) -> String {
     let splited = path.split("/");
     let mut stack = Vec::new();
 
@@ -58,13 +54,11 @@ pub(crate) fn normalize_path(
         match component {
             ".." => {
                 stack.pop();
-            },
+            }
             "." => {
                 // nothing to do
             }
-            other => {
-                stack.push(other)
-            }
+            other => stack.push(other),
         }
     }
 

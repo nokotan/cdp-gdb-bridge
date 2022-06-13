@@ -1,15 +1,14 @@
-use gimli::{ 
-    Unit, Reader, DebuggingInformationEntry,
-    DebugLine, LineRow, DebugLineOffset
-};
 use anyhow::{anyhow, Result};
+use gimli::{DebugLine, DebugLineOffset, DebuggingInformationEntry, LineRow, Reader, Unit};
 
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 
-use super::{ DwarfReader, DwarfReaderOffset, DwarfDebugData };
-use super::utils::{ clone_string_attribute, convert_from_windows_stype_path, is_absolute_path, normalize_path };
+use super::utils::{
+    clone_string_attribute, convert_from_windows_stype_path, is_absolute_path, normalize_path,
+};
+use super::{DwarfDebugData, DwarfReader, DwarfReaderOffset};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ColumnType {
@@ -47,7 +46,7 @@ pub fn transform_debug_line(
     let mut dirs = vec![];
     let mut files = Vec::new();
     let mut file_sorted_rows = BTreeMap::new();
-    
+
     if header.version() <= 4 {
         dirs.push("./".to_string());
         sequence_base_index = 1;
@@ -62,21 +61,21 @@ pub fn transform_debug_line(
     if header.version() <= 4 {
         let folder_name = match root.attr_value(gimli::DW_AT_comp_dir)? {
             Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-            None => String::from("")
+            None => String::from(""),
         };
 
         let file_name = match root.attr_value(gimli::DW_AT_name)? {
             Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-            None => String::from("unknown")
+            None => String::from("unknown"),
         };
 
         let path = match is_absolute_path(&file_name) {
             true => file_name,
-            false => format!("{}/{}", folder_name, file_name)
+            false => format!("{}/{}", folder_name, file_name),
         };
         let path = convert_from_windows_stype_path(&path);
         let path = normalize_path(&path);
-       
+
         files.push(PathBuf::from(&path));
         file_sorted_rows.insert(0, BTreeMap::new());
     }
@@ -96,10 +95,10 @@ pub fn transform_debug_line(
                 path = Path::new(&comp_dir).join(path);
             }
         }
-        
-        files.push(
-            PathBuf::from(&normalize_path(&path.to_string_lossy().into_owned()))
-        );
+
+        files.push(PathBuf::from(&normalize_path(
+            &path.to_string_lossy().into_owned(),
+        )));
         file_sorted_rows.insert(file_index + sequence_base_index, BTreeMap::new());
     }
 
@@ -109,26 +108,27 @@ pub fn transform_debug_line(
         sorted_rows.insert(row.address(), row.clone());
 
         match file_sorted_rows.get_mut(&(row.file_index() as usize)) {
-            Some(x) => { 
+            Some(x) => {
                 x.insert(
                     match row.line() {
                         Some(x) => x.get(),
-                        None => 0
-                    }, 
-                    row.clone()
-                ); 
-            },
+                        None => 0,
+                    },
+                    row.clone(),
+                );
+            }
             None => {}
         }
     }
     let sorted_rows: Vec<_> = sorted_rows.into_iter().collect();
-    let mapped_file_sorted_rows: Vec<(usize, Vec<(u64, LineRow)>)> = file_sorted_rows.into_iter().map(|x| {
-        (x.0, x.1.into_iter().collect())
-    }).collect();
+    let mapped_file_sorted_rows: Vec<(usize, Vec<(u64, LineRow)>)> = file_sorted_rows
+        .into_iter()
+        .map(|x| (x.0, x.1.into_iter().collect()))
+        .collect();
     Ok(DwarfUnitSourceMap {
         address_sorted_rows: sorted_rows,
         file_sorted_rows: mapped_file_sorted_rows,
-        paths: files
+        paths: files,
     })
 }
 
@@ -151,16 +151,13 @@ fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>) -> LineInf
 }
 fn transform_file_index(file_index: usize, paths: &Vec<std::path::PathBuf>) -> String {
     match paths.get(file_index as usize) {
-        Some(x) => { 
-            match x.clone().to_str() {
-                Some(x) => x.to_string(),
-                None => String::from("??? (stringify failed)")
-            }
+        Some(x) => match x.clone().to_str() {
+            Some(x) => x.to_string(),
+            None => String::from("??? (stringify failed)"),
         },
-        None => String::from("??? (index out of range)")
+        None => String::from("??? (index out of range)"),
     }
 }
-
 
 pub struct DwarfSourceMap {
     /// Source files -> DebugLineOffsets mapping table
@@ -172,7 +169,7 @@ pub struct DwarfSourceMap {
 
     directory_map: RefCell<HashMap<String, String>>,
 
-    dwarf_data: DwarfDebugData
+    dwarf_data: DwarfDebugData,
 }
 
 impl DwarfSourceMap {
@@ -196,7 +193,7 @@ impl DwarfSourceMap {
             address_sorted_rows: address_rows.into_iter().collect(),
             file_sorted_rows: file_rows.into_iter().collect(),
             directory_map: RefCell::new(HashMap::new()),
-            dwarf_data
+            dwarf_data,
         }
     }
 
@@ -204,9 +201,7 @@ impl DwarfSourceMap {
         self.directory_map.borrow_mut().insert(from, to);
     }
 
-    fn update_file_sorted_rows(&mut self, offset: DebugLineOffset) {
-
-    }
+    fn update_file_sorted_rows(&mut self, offset: DebugLineOffset) {}
 
     pub fn find_line_info(&self, offset: usize) -> Option<LineInfo> {
         let mut line_info = match self
@@ -233,9 +228,7 @@ impl DwarfSourceMap {
         let escaped_filename = normalize_path(&escaped_filename);
         let line_vec = match self
             .file_sorted_rows
-            .binary_search_by(|i| { 
-                i.0.cmp(&escaped_filename)
-            })
+            .binary_search_by(|i| i.0.cmp(&escaped_filename))
         {
             Ok(i) => &self.file_sorted_rows[i].1,
             Err(_) => {

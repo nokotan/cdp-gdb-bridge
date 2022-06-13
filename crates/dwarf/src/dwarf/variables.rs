@@ -1,14 +1,16 @@
-use gimli::{
-    Unit, Reader, AttributeValue, DebuggingInformationEntry,
-    Expression, UnitOffset, UnitSectionOffset
-};
 use anyhow::{anyhow, Result};
+use gimli::{
+    AttributeValue, DebuggingInformationEntry, Expression, Reader, Unit, UnitOffset,
+    UnitSectionOffset,
+};
 
-use super::{ 
-    DwarfReader, DwarfReaderOffset, VariableInfo, MemorySlice, VariableEvaluationResult, DwarfDebugData, unit_type_name };
-use super::utils::{ clone_string_attribute, error };
-use super::wasm_bindings::{ WasmValueVector };
-use crate::{ console_log };
+use super::utils::{clone_string_attribute, error};
+use super::wasm_bindings::WasmValueVector;
+use super::{
+    unit_type_name, DwarfDebugData, DwarfReader, DwarfReaderOffset, MemorySlice,
+    VariableEvaluationResult, VariableInfo,
+};
+use crate::console_log;
 
 pub struct VariableName {
     pub name: String,
@@ -17,8 +19,7 @@ pub struct VariableName {
     pub child_group_id: Option<i32>,
 }
 
-pub struct SymbolVariable
-{
+pub struct SymbolVariable {
     pub name: Option<String>,
     pub display_name: Option<String>,
     pub contents: Vec<VariableExpression>,
@@ -39,13 +40,13 @@ pub enum VariableExpression {
 pub enum VariableLocation {
     Address(u64),
     Offset(i64),
-    Pointer
+    Pointer,
 }
 
 #[derive(Clone)]
 pub enum TypeDescripter {
     TypeOffset(usize),
-    Description(String)
+    Description(String),
 }
 
 pub enum FrameBase {
@@ -62,13 +63,21 @@ pub fn variables_in_unit_entry(
     unit: &Unit<DwarfReader>,
     entry_offset: Option<UnitOffset<DwarfReaderOffset>>,
     code_offset: u64,
-    root_group_id: i32
+    root_group_id: i32,
 ) -> Result<Vec<SymbolVariable>> {
     let mut tree = unit.entries_tree(entry_offset)?;
     let root = tree.root()?;
     let mut variables = vec![];
     let mut root_group_id = root_group_id;
-    variables_in_unit_entry_recursive(root, dwarf, unit, code_offset, &mut variables, root_group_id, &mut root_group_id)?;
+    variables_in_unit_entry_recursive(
+        root,
+        dwarf,
+        unit,
+        code_offset,
+        &mut variables,
+        root_group_id,
+        &mut root_group_id,
+    )?;
     Ok(variables)
 }
 
@@ -79,17 +88,13 @@ fn variables_in_unit_entry_recursive(
     code_offset: u64,
     variables: &mut Vec<SymbolVariable>,
     root_group_id: i32,
-    group_id: &mut i32
+    group_id: &mut i32,
 ) -> Result<()> {
-
     let mut children = node.children();
 
-    if *group_id < 10000
-    {
+    if *group_id < 10000 {
         *group_id = (*group_id - 1000 + 1) * 10000;
-    }
-    else
-    {
+    } else {
         *group_id += 1;
     }
 
@@ -115,14 +120,30 @@ fn variables_in_unit_entry_recursive(
                     let code_range = low_pc..high_pc;
 
                     if code_range.contains(&code_offset) {
-                        variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, root_group_id, group_id)?;
+                        variables_in_unit_entry_recursive(
+                            child,
+                            dwarf,
+                            unit,
+                            code_offset,
+                            variables,
+                            root_group_id,
+                            group_id,
+                        )?;
                     }
                 }
             }
             gimli::DW_TAG_namespace => {
                 let mut var = transform_namespace(&dwarf, &unit, child.entry(), root_group_id)?;
                 var.child_group_id = Some(*group_id);
-                variables_in_unit_entry_recursive(child, dwarf, unit, code_offset, variables, *group_id, group_id)?;
+                variables_in_unit_entry_recursive(
+                    child,
+                    dwarf,
+                    unit,
+                    code_offset,
+                    variables,
+                    *group_id,
+                    group_id,
+                )?;
                 variables.push(var);
             }
             _ => continue,
@@ -137,7 +158,7 @@ fn structure_variable_recursive(
     unit: &Unit<DwarfReader>,
     parent_variable: &mut SymbolVariable,
     variables: &mut Vec<SymbolVariable>,
-    group_id: &mut i32
+    group_id: &mut i32,
 ) -> Result<()> {
     match node.entry().tag() {
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
@@ -145,70 +166,101 @@ fn structure_variable_recursive(
             let current_group_id = *group_id;
             parent_variable.child_group_id = Some(current_group_id);
             *group_id += 1;
-            
+
             while let Some(child) = children.next()? {
                 match child.entry().tag() {
                     gimli::DW_TAG_member => {
-                        let mut var = transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
+                        let mut var =
+                            transform_variable(&dwarf, &unit, child.entry(), current_group_id)?;
 
                         let mut contents = parent_variable.contents.clone();
                         contents.append(&mut var.contents);
 
                         let mut var = SymbolVariable {
                             display_name: Some(format!(
-                                "{}.{}", 
-                                parent_variable.name.as_ref().unwrap_or(&"<unnamed>".to_string()), 
+                                "{}.{}",
+                                parent_variable
+                                    .name
+                                    .as_ref()
+                                    .unwrap_or(&"<unnamed>".to_string()),
                                 var.name.as_ref().unwrap_or(&"<unnamed>".to_string())
                             )),
-                            name: Some(
-                                var.name.unwrap_or("<unnamed>".to_string())
-                            ),         
+                            name: Some(var.name.unwrap_or("<unnamed>".to_string())),
                             contents,
                             ty_offset: var.ty_offset,
                             group_id: var.group_id,
-                            child_group_id: var.child_group_id
+                            child_group_id: var.child_group_id,
                         };
 
                         if let TypeDescripter::TypeOffset(offset) = var.ty_offset {
                             let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
                             let root = tree.root()?;
-                            structure_variable_recursive(root, dwarf, unit, &mut var, variables, group_id)?;
+                            structure_variable_recursive(
+                                root, dwarf, unit, &mut var, variables, group_id,
+                            )?;
                         }
-                        
+
                         variables.push(var);
-                    },
-                    _ => continue
-                }  
+                    }
+                    _ => continue,
+                }
             }
-        },
+        }
         gimli::DW_TAG_pointer_type | gimli::DW_TAG_reference_type => {
             parent_variable.contents.push(VariableExpression::Pointer);
 
-            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
+            if let Some(AttributeValue::UnitRef(ref offset)) =
+                node.entry().attr_value(gimli::DW_AT_type)?
+            {
                 if node.entry().offset() != *offset {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
-                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
+                    structure_variable_recursive(
+                        root,
+                        dwarf,
+                        unit,
+                        parent_variable,
+                        variables,
+                        group_id,
+                    )?;
                 }
-            } 
-        },
+            }
+        }
         gimli::DW_TAG_const_type => {
-            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
+            if let Some(AttributeValue::UnitRef(ref offset)) =
+                node.entry().attr_value(gimli::DW_AT_type)?
+            {
                 if node.entry().offset() != *offset {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
-                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
+                    structure_variable_recursive(
+                        root,
+                        dwarf,
+                        unit,
+                        parent_variable,
+                        variables,
+                        group_id,
+                    )?;
                 }
-            } 
-        },
+            }
+        }
         _ => {
-            if let Some(AttributeValue::UnitRef(ref offset)) = node.entry().attr_value(gimli::DW_AT_type)? {          
+            if let Some(AttributeValue::UnitRef(ref offset)) =
+                node.entry().attr_value(gimli::DW_AT_type)?
+            {
                 if node.entry().offset() != *offset {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
                     let root = tree.root()?;
-                    structure_variable_recursive(root, dwarf, unit, parent_variable, variables, group_id)?;
+                    structure_variable_recursive(
+                        root,
+                        dwarf,
+                        unit,
+                        parent_variable,
+                        variables,
+                        group_id,
+                    )?;
                 }
-            } 
+            }
         }
     }
 
@@ -263,11 +315,11 @@ fn transform_variable(
         display_name: name,
         contents: match content {
             Some(x) => vec![x],
-            None => vec![]
+            None => vec![],
         },
         ty_offset: ty,
         group_id,
-        child_group_id: None
+        child_group_id: None,
     })
 }
 
@@ -288,18 +340,16 @@ fn transform_namespace(
         contents: vec![],
         ty_offset: TypeDescripter::Description(String::from("namespace")),
         group_id,
-        child_group_id: None
+        child_group_id: None,
     })
 }
-
-
 
 pub fn evaluate_variable_from_string(
     name: &String,
     variables: &Vec<SymbolVariable>,
     dwarf: &gimli::Dwarf<DwarfReader>,
     unit: &Unit<DwarfReader, DwarfReaderOffset>,
-    frame_base: FrameBase
+    frame_base: FrameBase,
 ) -> Result<Option<VariableInfo>> {
     let name = name.replace("->", ".");
     let this_name = format!("this.{}", name);
@@ -312,7 +362,8 @@ pub fn evaluate_variable_from_string(
             } else {
                 false
             }
-        }).next()
+        })
+        .next()
     {
         Some(v) => v,
         None => {
@@ -323,11 +374,11 @@ pub fn evaluate_variable_from_string(
     let mut constant_data = None;
 
     for content in &var.contents {
-
         match content {
             VariableExpression::Location(location) => match location {
                 AttributeValue::Exprloc(expr) => {
-                    let piece = evaluate_variable_location(unit.encoding(), &frame_base, expr.clone())?;
+                    let piece =
+                        evaluate_variable_location(unit.encoding(), &frame_base, expr.clone())?;
                     let piece = match piece.iter().next() {
                         Some(p) => p,
                         None => {
@@ -335,59 +386,63 @@ pub fn evaluate_variable_from_string(
                             return Ok(None);
                         }
                     };
-        
+
                     match piece.location {
-                        gimli::Location::Address { address } => { calculated_address.push(VariableLocation::Address(address)); },
+                        gimli::Location::Address { address } => {
+                            calculated_address.push(VariableLocation::Address(address));
+                        }
                         _ => unimplemented!(),
                     };
                 }
                 AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
                 AttributeValue::Sdata(b) => {
                     calculated_address.push(VariableLocation::Offset(*b));
-                },
+                }
                 AttributeValue::Udata(b) => {
                     calculated_address.push(VariableLocation::Offset(*b as i64));
-                },
+                }
                 _ => panic!(),
             },
             VariableExpression::ConstValue(ref _bytes) => {
                 constant_data = Some(_bytes.clone());
-            },
+            }
             VariableExpression::Pointer => {
                 calculated_address.push(VariableLocation::Pointer);
-            },
+            }
             VariableExpression::Unknown { ref debug_info } => {
                 unimplemented!("Unknown variable content found {}", debug_info)
             }
-        };        
+        };
     }
 
     match &var.ty_offset {
         TypeDescripter::TypeOffset(offset) => {
             let mut tree = unit.entries_tree(Some(UnitOffset(*offset)))?;
             let root = tree.root()?;
-            
-            return match create_variable_info(root, calculated_address, constant_data, &dwarf, &unit) {
+
+            return match create_variable_info(
+                root,
+                calculated_address,
+                constant_data,
+                &dwarf,
+                &unit,
+            ) {
                 Ok(x) => Ok(Some(x)),
                 Err(e) => {
                     console_log!("{}", e);
                     Ok(None)
                 }
-            };   
-        },
-        TypeDescripter::Description(desc) => {
-            Ok(Some(
-                VariableInfo {
-                    name: desc.clone(),
-                    address_expr: Vec::new(),
-                    byte_size: 0,
-                    tag: gimli::DW_TAG_class_type,
-                    memory_slice: MemorySlice::new(),
-                    state: VariableEvaluationResult::Ready,
-                    encoding: gimli::DW_ATE_ASCII
-                }
-            ))
+            };
         }
+        TypeDescripter::Description(desc) => Ok(Some(VariableInfo {
+            name: desc.clone(),
+            address_expr: Vec::new(),
+            byte_size: 0,
+            tag: gimli::DW_TAG_class_type,
+            memory_slice: MemorySlice::new(),
+            state: VariableEvaluationResult::Ready,
+            encoding: gimli::DW_ATE_ASCII,
+        })),
     }
 }
 
@@ -413,14 +468,14 @@ fn evaluate_variable_location<R: gimli::Reader>(
                 } else {
                     return Err(anyhow!("unexpected occurrence of DW_AT_frame_base"));
                 }
-            },
+            }
             EvaluationResult::RequiresRelocatedAddress(addr) => {
                 if let FrameBase::WasmDataBase(base) = base {
                     result = evaluation.resume_with_relocated_address(addr + *base)?;
                 } else {
                     return Err(anyhow!("unexpected occurrence of relocated_address"));
                 }
-            },
+            }
             ref x => Err(anyhow!("{:?}", x))?,
         }
     }
@@ -434,7 +489,7 @@ fn create_variable_info<R: gimli::Reader>(
     unit: &Unit<R>,
 ) -> Result<VariableInfo> {
     let data = const_data.unwrap_or(Vec::new());
-    
+
     match node.entry().tag() {
         gimli::DW_TAG_base_type => {
             let entry = node.entry();
@@ -461,7 +516,7 @@ fn create_variable_info<R: gimli::Reader>(
                 encoding,
                 tag: gimli::DW_TAG_base_type,
                 memory_slice: MemorySlice::from_u8_vec(data),
-                state: VariableEvaluationResult::Ready
+                state: VariableEvaluationResult::Ready,
             })
         }
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
@@ -475,7 +530,7 @@ fn create_variable_info<R: gimli::Reader>(
                 .attr_value(gimli::DW_AT_byte_size)?
                 .and_then(|attr| attr.udata_value())
                 .unwrap_or(0);
-            
+
             Ok(VariableInfo {
                 address_expr: address,
                 byte_size: byte_size as usize,
@@ -483,47 +538,47 @@ fn create_variable_info<R: gimli::Reader>(
                 encoding: gimli::DW_ATE_signed,
                 tag,
                 memory_slice: MemorySlice::from_u8_vec(data),
-                state: VariableEvaluationResult::Ready
+                state: VariableEvaluationResult::Ready,
             })
-        },
-        _ => {
-            match node.entry().attr_value(gimli::DW_AT_type)? {
-                Some(AttributeValue::UnitRef(ref offset)) => {
-                    let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
-                    let root = tree.root()?;
-
-                    create_variable_info(root, address, Some(data), dwarf, unit)
-                },
-                _ => Err(anyhow!("unsupported DIE type"))
-            }
         }
+        _ => match node.entry().attr_value(gimli::DW_AT_type)? {
+            Some(AttributeValue::UnitRef(ref offset)) => {
+                let mut tree = unit.entries_tree(Some(UnitOffset(offset.0)))?;
+                let root = tree.root()?;
+
+                create_variable_info(root, address, Some(data), dwarf, unit)
+            }
+            _ => Err(anyhow!("unsupported DIE type")),
+        },
     }
 }
 
-
-
 pub struct DwarfGlobalVariables {
-    pub dwarf_data: DwarfDebugData
+    pub dwarf_data: DwarfDebugData,
 }
 
 impl DwarfGlobalVariables {
-    pub fn variable_name_list(&self, unit_offset: UnitSectionOffset, root_id: i32) -> Result<Vec<VariableName>> {
-
+    pub fn variable_name_list(
+        &self,
+        unit_offset: UnitSectionOffset,
+        root_id: i32,
+    ) -> Result<Vec<VariableName>> {
         let (dwarf, unit) = match self.dwarf_data.unit_offset(unit_offset)? {
             Some(x) => x,
-            None => { 
+            None => {
                 return Ok(Vec::new());
             }
         };
 
         let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, root_id)?;
-        let list = variables.iter()
+        let list = variables
+            .iter()
             .map(|var| {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
                     group_id: var.group_id,
-                    child_group_id: var.child_group_id
+                    child_group_id: var.child_group_id,
                 };
                 if let Some(ref name) = var.name {
                     v.name = name.clone();
@@ -533,14 +588,15 @@ impl DwarfGlobalVariables {
                         if let Ok(ty_name) = unit_type_name(&dwarf, &unit, Some(*offset)) {
                             v.type_name = ty_name;
                         }
-                    },
+                    }
                     TypeDescripter::Description(desc) => {
                         v.type_name = desc.clone();
                     }
                 }
-                
+
                 v
-            }).collect();
+            })
+            .collect();
 
         Ok(list)
     }
@@ -551,10 +607,9 @@ impl DwarfGlobalVariables {
         frame_base: FrameBase,
         name: &String,
     ) -> Result<Option<VariableInfo>> {
-
         let (dwarf, unit) = match self.dwarf_data.unit_offset(unit_offset)? {
             Some(x) => x,
-            None => { 
+            None => {
                 return Ok(None);
             }
         };
@@ -564,17 +619,12 @@ impl DwarfGlobalVariables {
     }
 
     pub fn get_variable_info(
-        &self, 
+        &self,
         opts: &String,
         unit_offset: UnitSectionOffset,
         data_base: usize,
         globals: &WasmValueVector,
     ) -> Result<Option<VariableInfo>> {
-        
-        self.display_variable(
-            unit_offset,
-            FrameBase::WasmDataBase(data_base as u64),
-            opts
-        )
+        self.display_variable(unit_offset, FrameBase::WasmDataBase(data_base as u64), opts)
     }
 }

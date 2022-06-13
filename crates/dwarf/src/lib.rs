@@ -1,26 +1,23 @@
+use anyhow::Result;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::*;
-use wasmparser::{Parser,Payload};
-use anyhow::{Result};
+use wasmparser::{Parser, Payload};
 
 mod dwarf;
 
-use crate::dwarf::{ DwarfDebugInfo, VariableInfo, transform_dwarf };
-use crate::dwarf::wasm_bindings::{ 
-    WasmLineInfo, WasmValueVector, VariableVector
-};
-use crate::dwarf::utils::{ error };
+use crate::dwarf::utils::error;
+use crate::dwarf::wasm_bindings::{VariableVector, WasmLineInfo, WasmValueVector};
+use crate::dwarf::{transform_dwarf, DwarfDebugInfo, VariableInfo};
 
 #[wasm_bindgen]
 pub struct DwarfDebugSymbolContainer {
     debug_info: DwarfDebugInfo,
     code_base: usize,
-    data_base: usize
+    data_base: usize,
 }
 
 #[wasm_bindgen]
 impl DwarfDebugSymbolContainer {
-
     pub fn new(data: &[u8]) -> Self {
         let base = calculate_code_base(data).ok().unwrap_or((0, 0));
 
@@ -32,9 +29,13 @@ impl DwarfDebugSymbolContainer {
     }
 
     pub fn find_file_info_from_address(&self, instruction_offset: usize) -> Option<WasmLineInfo> {
-        match self.debug_info.sourcemap.find_line_info(instruction_offset - self.code_base) {
+        match self
+            .debug_info
+            .sourcemap
+            .find_line_info(instruction_offset - self.code_base)
+        {
             Some(x) => Some(WasmLineInfo::from_line_info(&x)),
-            None => None
+            None => None,
         }
     }
 
@@ -42,54 +43,95 @@ impl DwarfDebugSymbolContainer {
         let file_info = WasmLineInfo::into_line_info(info);
         match self.debug_info.sourcemap.find_address(&file_info) {
             Some(x) => Some(x + self.code_base),
-            None => None
+            None => None,
         }
     }
 
     pub fn variable_name_list(&self, instruction_offset: usize) -> Option<VariableVector> {
-        match self.debug_info.subroutine.variable_name_list(instruction_offset - self.code_base, 1000) {
+        match self
+            .debug_info
+            .subroutine
+            .variable_name_list(instruction_offset - self.code_base, 1000)
+        {
             Ok(x) => Some(VariableVector::from_vec(x)),
-            Err(e) => { console_log!("{}", e); None }
+            Err(e) => {
+                console_log!("{}", e);
+                None
+            }
         }
     }
 
     pub fn global_variable_name_list(&self, instruction: usize) -> Option<VariableVector> {
-
-        let subroutine = match self.debug_info.subroutine.find_subroutine(instruction - self.code_base) 
+        let subroutine = match self
+            .debug_info
+            .subroutine
+            .find_subroutine(instruction - self.code_base)
         {
             Ok(x) => x,
-            Err(e) => { console_log!("{}", e); return None; }
+            Err(e) => {
+                console_log!("{}", e);
+                return None;
+            }
         };
 
-        match self.debug_info.global_variables.variable_name_list(subroutine.unit_offset, 1001) {
+        match self
+            .debug_info
+            .global_variables
+            .variable_name_list(subroutine.unit_offset, 1001)
+        {
             Ok(x) => Some(VariableVector::from_vec(x)),
-            Err(e) => { console_log!("{}", e); None }
+            Err(e) => {
+                console_log!("{}", e);
+                None
+            }
         }
     }
 
     pub fn get_variable_info(
-        &self, 
+        &self,
         opts: String,
         locals: &WasmValueVector,
         globals: &WasmValueVector,
         stacks: &WasmValueVector,
-        instruction_offset: usize) -> Option<VariableInfo> {
-
-        match self.debug_info.subroutine.get_variable_info(&opts, locals, globals, stacks, instruction_offset - self.code_base) {
+        instruction_offset: usize,
+    ) -> Option<VariableInfo> {
+        match self.debug_info.subroutine.get_variable_info(
+            &opts,
+            locals,
+            globals,
+            stacks,
+            instruction_offset - self.code_base,
+        ) {
             Ok(Some(x)) => return Some(x),
-            Ok(None) => {},
-            Err(e) => { console_log!("{}", e)}
+            Ok(None) => {}
+            Err(e) => {
+                console_log!("{}", e)
+            }
         };
 
-        let subroutine = match self.debug_info.subroutine.find_subroutine(instruction_offset - self.code_base) 
+        let subroutine = match self
+            .debug_info
+            .subroutine
+            .find_subroutine(instruction_offset - self.code_base)
         {
             Ok(x) => x,
-            Err(e) => { console_log!("{}", e); return None; }
+            Err(e) => {
+                console_log!("{}", e);
+                return None;
+            }
         };
 
-        match self.debug_info.global_variables.get_variable_info(&opts, subroutine.unit_offset, self.data_base, globals) {
+        match self.debug_info.global_variables.get_variable_info(
+            &opts,
+            subroutine.unit_offset,
+            self.data_base,
+            globals,
+        ) {
             Ok(x) => x,
-            Err(e) => { console_log!("{}", e); None }
+            Err(e) => {
+                console_log!("{}", e);
+                None
+            }
         }
     }
 }
@@ -103,14 +145,14 @@ fn calculate_code_base(data: &[u8]) -> Result<(usize, usize)> {
         match payload? {
             Payload::CodeSectionStart { range, .. } => {
                 code_section_offset = range.start;
-            },
+            }
             // Payload::DataSection(ref mut reader) => {
             //     let data = reader.read().expect("data");
-               
+
             //     if let DataKind::Active { init_expr, .. } = data.kind {
             //         let mut init_expr_reader = init_expr.get_binary_reader();
             //         let op = init_expr_reader.read_operator().expect("op");
-                    
+
             //         match op {
             //             wasmparser::Operator::I32Const { value } => {
             //                 data_section_offset = value as usize
@@ -119,10 +161,8 @@ fn calculate_code_base(data: &[u8]) -> Result<(usize, usize)> {
             //         }
             //     }
             // },
-            _ => continue
+            _ => continue,
         }
-    };
-    Ok(
-        (code_section_offset, data_section_offset)
-    )
+    }
+    Ok((code_section_offset, data_section_offset))
 }
