@@ -85,8 +85,6 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         if (launchedProcess) {
             launchedProcess.kill();
         }
-
-		this.sendEvent(new TerminatedEvent());
 	} 
 
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
@@ -202,7 +200,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				const nodeExecitable = args.node || "node";
 				const launchedProcess = spawn(nodeExecitable, [ `--inspect-brk=${port}`, args.program! ], { cwd: args.cwd });
 				let textBuffer = "";
-				
+
 				launchedProcess.on('exit', () => { console.error('Process Exited.') });
 				// TODO: forward launched process log messages to vscode
 				launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
@@ -240,7 +238,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 		console.error("Session Opened.");
 
-		this.launchedProcess?.on('exit', () => { void this.terminate(client, undefined); });
+		this.launchedProcess?.on('exit', () => { 
+			void this.terminate(client, undefined); 
+			this.sendEvent(new TerminatedEvent());
+		});
 
         // extract domains
         const { Debugger, Page, Runtime } = this.client;
