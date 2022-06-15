@@ -185,12 +185,16 @@ impl DwarfSubroutineMap {
             .map(|var| {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
+                    display_name: "<<not parsed yet>>".to_string(),
                     type_name: "<<not parsed yet>>".to_string(),
                     group_id: var.group_id,
                     child_group_id: var.child_group_id,
                 };
                 if let Some(ref mut name) = var.name {
                     v.name = std::mem::take(name);
+                }
+                if let Some(ref mut display_name) = var.display_name {
+                    v.display_name = std::mem::take(display_name);
                 }
                 match &var.ty_offset {
                     TypeDescripter::TypeOffset(offset) => {

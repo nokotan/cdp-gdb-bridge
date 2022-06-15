@@ -122,6 +122,10 @@ impl VariableVector {
         self.data[index].name.clone()
     }
 
+    pub fn at_display_name(&self, index: usize) -> String {
+        self.data[index].display_name.clone()
+    }
+
     pub fn at_type_name(&self, index: usize) -> String {
         self.data[index].type_name.clone()
     }

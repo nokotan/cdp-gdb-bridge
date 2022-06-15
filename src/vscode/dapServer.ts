@@ -408,7 +408,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		}
 
 		const variablesPromise = vs.map(async x => {
-			const value = await this.session.dumpVariable(x.name) || '???';
+			const value = await this.session.dumpVariable(x.displayName) || '???';
 
 			return {
 				name: x.name,

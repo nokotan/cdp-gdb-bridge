@@ -119,6 +119,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
         for (let i = 0; i < varlist.size(); i++)
         {
             const name = varlist.at_name(i);
+            const displayName = varlist.at_display_name(i);
             const type = varlist.at_type_name(i);
             const groupId = varlist.at_group_id(i);
             const childGroupId = varlist.at_chile_group_id(i);
@@ -126,13 +127,13 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             if (!variableReference)
             {
                 list.push({
-                    name, type, childGroupId
+                    name, displayName, type, childGroupId
                 })
             }
             else if (variableReference == groupId)
             {
                 list.push({
-                    name, type, childGroupId
+                    name, displayName, type, childGroupId
                 })
             }
         }
@@ -158,6 +159,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             for (let i = 0; i < varlist.size(); i++)
             {
                 const name = varlist.at_name(i);
+                const displayName = varlist.at_display_name(i);
                 const type = varlist.at_type_name(i);
                 const groupId = varlist.at_group_id(i);
                 const childGroupId = varlist.at_chile_group_id(i);
@@ -165,13 +167,13 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
                 if (!variableReference)
                 {
                     list.push({
-                        name, type, childGroupId
+                        name, displayName, type, childGroupId
                     })
                 }
                 else if (variableReference == groupId)
                 {
                     list.push({
-                        name, type, childGroupId
+                        name, displayName, type, childGroupId
                     })
                 }
             }

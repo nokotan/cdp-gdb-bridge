@@ -3,6 +3,7 @@ import { WasmValueVector } from "../../crates/dwarf/pkg";
 
 export interface Variable {
     name: string;
+    displayName: string;
     type: string;
     childGroupId?: number;
 }
