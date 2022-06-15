@@ -45,7 +45,9 @@ pub fn format_object(varinfo: &VariableInfo) -> Result<String> {
                 other => Err(anyhow!(format!("unsupported attribute type: {}", other))),
             }
         }
-        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => Ok(varinfo.name.clone()),
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type | gimli::DW_TAG_union_type => {
+            Ok(varinfo.name.clone())
+        }
         _ => Err(anyhow!("unsupported DIE type")),
     }
 }

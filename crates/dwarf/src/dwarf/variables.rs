@@ -161,7 +161,7 @@ fn structure_variable_recursive(
     group_id: &mut i32,
 ) -> Result<()> {
     match node.entry().tag() {
-        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type | gimli::DW_TAG_union_type => {
             let mut children = node.children();
             let current_group_id = *group_id;
             parent_variable.child_group_id = Some(current_group_id);
@@ -514,7 +514,7 @@ fn create_variable_info<R: gimli::Reader>(
                 state: VariableEvaluationResult::Ready,
             })
         }
-        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type | gimli::DW_TAG_union_type => {
             let entry = node.entry();
             let tag = entry.tag();
             let type_name = match entry.attr_value(gimli::DW_AT_name)? {

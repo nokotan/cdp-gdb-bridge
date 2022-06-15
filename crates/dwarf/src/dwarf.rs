@@ -158,7 +158,10 @@ fn unit_type_name<R: gimli::Reader>(
     let root = tree.root()?;
 
     match root.entry().tag() {
-        gimli::DW_TAG_base_type | gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+        gimli::DW_TAG_base_type
+        | gimli::DW_TAG_class_type
+        | gimli::DW_TAG_structure_type
+        | gimli::DW_TAG_union_type => {
             if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
                 clone_string_attribute(dwarf, unit, attr)
             } else {
