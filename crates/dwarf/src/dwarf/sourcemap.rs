@@ -81,15 +81,15 @@ pub fn transform_debug_line(
     }
 
     for (file_index, file_entry) in header.file_names().iter().enumerate() {
-        let dir = dirs[file_entry.directory_index() as usize].clone();
-        let dir = convert_from_windows_stype_path(&dir);
+        let dir = &dirs[file_entry.directory_index() as usize];
+        let dir = convert_from_windows_stype_path(dir);
 
         let dir_path = Path::new(&dir);
         let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
         let mut path = dir_path.join(convert_from_windows_stype_path(&path));
 
         if !is_absolute_path(path.to_str().unwrap_or("")) {
-            if let Some(comp_dir) = unit.comp_dir.clone() {
+            if let Some(ref comp_dir) = unit.comp_dir {
                 let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
                 let comp_dir = convert_from_windows_stype_path(&comp_dir);
                 path = Path::new(&comp_dir).join(path);

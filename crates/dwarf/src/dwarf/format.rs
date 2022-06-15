@@ -6,7 +6,7 @@ use super::VariableInfo;
 pub fn format_object(varinfo: &VariableInfo) -> Result<String> {
     match varinfo.tag {
         gimli::DW_TAG_base_type => {
-            let name = varinfo.name.clone();
+            let name = &varinfo.name;
             let byte_size = varinfo.byte_size;
             let encoding = varinfo.encoding;
             let mut bytes = Vec::new();

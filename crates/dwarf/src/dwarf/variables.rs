@@ -565,9 +565,9 @@ impl DwarfGlobalVariables {
             }
         };
 
-        let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, root_id)?;
+        let mut variables = variables_in_unit_entry(&dwarf, &unit, None, 0, root_id)?;
         let list = variables
-            .iter()
+            .iter_mut()
             .map(|var| {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
@@ -575,8 +575,8 @@ impl DwarfGlobalVariables {
                     group_id: var.group_id,
                     child_group_id: var.child_group_id,
                 };
-                if let Some(ref name) = var.name {
-                    v.name = name.clone();
+                if let Some(ref mut name) = var.name {
+                    v.name = std::mem::take(name);
                 }
                 match &var.ty_offset {
                     TypeDescripter::TypeOffset(offset) => {

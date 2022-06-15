@@ -177,11 +177,11 @@ impl DwarfSubroutineMap {
         };
 
         let entry_offset = subroutine.entry_offset;
-        let variables =
+        let mut variables =
             variables_in_unit_entry(&dwarf, &unit, Some(entry_offset), offset, group_id)?;
 
         Ok(variables
-            .iter()
+            .iter_mut()
             .map(|var| {
                 let mut v = VariableName {
                     name: "<<not parsed yet>>".to_string(),
@@ -189,8 +189,8 @@ impl DwarfSubroutineMap {
                     group_id: var.group_id,
                     child_group_id: var.child_group_id,
                 };
-                if let Some(ref name) = var.name {
-                    v.name = name.clone();
+                if let Some(ref mut name) = var.name {
+                    v.name = std::mem::take(name);
                 }
                 match &var.ty_offset {
                     TypeDescripter::TypeOffset(offset) => {
