@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "crates/dwarf/Cargo.toml"
+    ]
+}
