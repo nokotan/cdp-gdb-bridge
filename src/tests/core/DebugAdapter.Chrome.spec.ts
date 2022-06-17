@@ -8,7 +8,7 @@ let server: Server;
 beforeAll(() => {
     dc = new DebugClient('node', 'dist/vscode/dapServerLauncher.js', 'wasm-chrome', undefined, true);
     server = createServer({ 
-        root: "tests/app"
+        root: "tests/emscripten-simple-app"
     });
     server.listen(8080);
     return dc.start();

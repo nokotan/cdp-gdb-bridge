@@ -14,7 +14,7 @@ afterAll(() => {
 test('should run program to the end', () => {
     return Promise.all([
         dc.waitForEvent("terminated"),
-        dc.launch({ program: "tests/app/Main.js", type: "wasm-node", port: 19201 })
+        dc.launch({ program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19201 })
     ]);
 });
 
@@ -34,7 +34,7 @@ test('should hit breakpoint', async () => {
     });
     await Promise.all([
         dc.assertStoppedLocation("BreakPointMapping", breakPoint),
-        dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 })
+        dc.send("launch", { program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19202 })
     ]);
     await Promise.all([           
         dc.waitForEvent("terminated"),
@@ -59,7 +59,7 @@ test('should step line by line', async () => {
     });
     await Promise.all([
         dc.waitForEvent("stopped"),
-        dc.send("launch", { program: "tests/app/Main.js", type: "wasm-node", port: 19202 })
+        dc.send("launch", { program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19202 })
     ]);
     await Promise.all([           
         dc.assertStoppedLocation("BreakPointMapping", {
