@@ -88,9 +88,9 @@ pub fn transform_debug_line(
         let path = clone_string_attribute(dwarf, unit, file_entry.path_name())?;
         let mut path = dir_path.join(convert_from_windows_stype_path(&path));
 
-        if !is_absolute_path(path.to_str().unwrap_or("")) {
+        if !is_absolute_path(path.to_str().unwrap_or_default()) {
             if let Some(ref comp_dir) = unit.comp_dir {
-                let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
+                let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap_or_default();
                 let comp_dir = convert_from_windows_stype_path(&comp_dir);
                 path = Path::new(&comp_dir).join(path);
             }
@@ -141,8 +141,8 @@ pub struct DwarfUnitSourceMap {
 fn transform_lineinfo(row: &LineRow, paths: &Vec<std::path::PathBuf>) -> LineInfo {
     let filepath = paths[row.file_index() as usize].clone();
     LineInfo {
-        filepath: filepath.to_str().unwrap().to_string(),
-        line: Some(row.line().unwrap().get()),
+        filepath: filepath.to_str().unwrap_or_default().to_string(),
+        line: if let Some(x) = row.line() { Some(x.get()) } else { None },
         column: match row.column() {
             gimli::ColumnType::Column(c) => ColumnType::Column(c.get()),
             gimli::ColumnType::LeftEdge => ColumnType::LeftEdge,
@@ -236,7 +236,7 @@ impl DwarfSourceMap {
             }
         };
 
-        match line_vec.binary_search_by_key(&file.line.unwrap(), |i| i.0) {
+        match line_vec.binary_search_by_key(&file.line.unwrap_or_default(), |i| i.0) {
             Ok(i) => Some(line_vec[i].1.address() as usize),
             Err(i) => {
                 if i > 0 {
