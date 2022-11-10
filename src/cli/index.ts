@@ -5,6 +5,7 @@ import { launch, LaunchedChrome } from 'chrome-launcher';
 import { DebugSessionManager } from '../core/DebugSession'
 import { CommandReader } from './CommandReader'
 import { DebugAdapter } from '../core/DebugAdapterInterface';
+import minimist from 'minimist';
 
 class DummyDebugAdapter implements DebugAdapter {
     sendEvent() {
@@ -12,9 +13,19 @@ class DummyDebugAdapter implements DebugAdapter {
     }
 }
 
+interface CommandOptions {
+    page?: string;
+}
+
 async function main() {
     let client: CDP.Client | null = null;
     let launchedBrowser: LaunchedChrome | null = null;
+
+    const argv = minimist(process.argv.slice(2), {
+        alias: {
+            p: 'page'
+        }
+    }) as CommandOptions;
     
     try {
         launchedBrowser = await launch({
@@ -47,7 +58,13 @@ async function main() {
         await Page.enable();
 
         const commandReader = new CommandReader(manager);
+
+        if (argv.page) {
+            await commandReader.jumpToPage(argv.page);
+        }
+
         await commandReader.start();
+        
     } catch (err) {
         console.error(err);
     } finally {
