@@ -26,10 +26,19 @@ async function main() {
         });
 
         // extract domains
-        const { Debugger, Page, Runtime } = client;
+        const { Debugger, Page, Runtime, Console } = client;
 
         const manager = new DebugSessionManager(new DummyDebugAdapter());
         manager.setChromeDebuggerApi(Debugger, Page, Runtime);
+
+        await Console.enable();
+		Console.on("messageAdded", e => {
+			if (e.message.level == "error") {
+				console.error(e.message.text);
+			} else {
+				console.log(e.message.text);
+			}
+		});
       
         await Debugger.enable({});
         await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });

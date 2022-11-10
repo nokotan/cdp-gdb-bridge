@@ -1,10 +1,10 @@
-import { DebugProtocol } from 'vscode-debugprotocol';
+import { DebugProtocol } from '@vscode/debugprotocol';
 import {
 	LoggingDebugSession,
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint, TerminatedEvent,
 	InitializedEvent,
 	OutputEvent
-} from 'vscode-debugadapter';
+} from '@vscode/debugadapter';
 import { launch } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
 import { DebugSessionManager } from '../core/DebugSession'
@@ -112,9 +112,18 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         });
 
         // extract domains
-        const { Debugger, Page, Runtime } = this.client;
+        const { Debugger, Page, Runtime, Console } = this.client;
 
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+
+		await Console.enable();
+		Console.on("messageAdded", e => {
+			if (e.message.level == "error") {
+				this.sendEvent(new OutputEvent(e.message.text + "\n", 'stderr'));
+			} else {
+				this.sendEvent(new OutputEvent(e.message.text + "\n", 'stdout'));
+			}
+		});
 
         await Debugger.enable({});
 		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
@@ -202,8 +211,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				let textBuffer = "";
 
 				launchedProcess.on('exit', () => { console.error('Process Exited.') });
-				// TODO: forward launched process log messages to vscode
-				launchedProcess.stdout?.on('data', (d: Buffer) => { this.sendEvent(new OutputEvent(d.toString(), 'stdout')) });
+
 				launchedProcess.stderr?.on('data', (d: Buffer) => { 
 					textBuffer += d.toString();
 
@@ -211,8 +219,6 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 					while (splitText.length > 1) {
 						const text = splitText.shift() || "";
-
-						this.sendEvent(new OutputEvent(text, 'stderr')) ;
 
 						// FIXME
 						if (text.trim() === "Waiting for the debugger to disconnect...") {
@@ -244,9 +250,18 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		});
 
         // extract domains
-        const { Debugger, Page, Runtime } = this.client;
+        const { Debugger, Page, Runtime, Console } = this.client;
 
 		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+
+		await Console.enable();
+		Console.on("messageAdded", e => {
+			if (e.message.level == "error") {
+				this.sendEvent(new OutputEvent(e.message.text + "\n", 'stderr'));
+			} else {
+				this.sendEvent(new OutputEvent(e.message.text + "\n", 'stdout'));
+			}
+		});
 
         await Debugger.enable({});
 		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });

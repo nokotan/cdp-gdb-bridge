@@ -2,7 +2,7 @@ import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import {
 	StoppedEvent, BreakpointEvent, ContinuedEvent
-} from 'vscode-debugadapter';
+} from '@vscode/debugadapter';
 import { WebAssemblyFile } from "./Source"
 import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
