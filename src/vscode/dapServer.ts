@@ -199,7 +199,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			case 'wasm-chrome': {
 				const launchedProcess = await launch({
 					port: port,
-					chromeFlags: args.flags
+					chromeFlags: args.flags,
+					userDataDir: false,
+					ignoreDefaultFlags: true
 				});
 
 				this.launchedProcess = launchedProcess.process;
