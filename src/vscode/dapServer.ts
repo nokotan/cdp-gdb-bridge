@@ -30,6 +30,10 @@ interface IChromeLaunchRequestArguments {
 	port?: number;
 
 	flags?: string[];
+
+	userDataDir?: string;
+
+	ignoreDefaultFlags?: boolean;
 }
 
 interface INodeLaunchRequestArguments {
@@ -199,7 +203,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			case 'wasm-chrome': {
 				const launchedProcess = await launch({
 					port: port,
-					chromeFlags: args.flags
+					chromeFlags: args.flags,
+					userDataDir: args.userDataDir,
+					ignoreDefaultFlags: args.ignoreDefaultFlags
 				});
 
 				this.launchedProcess = launchedProcess.process;
