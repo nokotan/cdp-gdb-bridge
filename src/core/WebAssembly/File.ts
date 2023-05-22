@@ -1,13 +1,15 @@
 import type Protocol from 'devtools-protocol/types/protocol';
-import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg"
+import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../../crates/dwarf/pkg"
 
 export class WebAssemblyFile {
 
     scriptID: Protocol.Runtime.ScriptId;
+    url: string;
     dwarf: DwarfDebugSymbolContainer;
 
-    constructor(_scriptID: Protocol.Runtime.ScriptId, wasm: DwarfDebugSymbolContainer) {
+    constructor(_scriptID: Protocol.Runtime.ScriptId, url: string, wasm: DwarfDebugSymbolContainer) {
         this.scriptID = _scriptID;
+        this.url = url;
         this.dwarf = wasm;
     }
 

@@ -66,12 +66,18 @@ export interface DebuggerWorkflowCommand {
     continue(): Promise<void>;
 }
 
-export interface DebuggerOtherCommand {
+export interface DebuggerBreakPointCommand {
     setBreakPoint(location: FileLocation): Promise<IBreakPoint>;
     removeBreakPoint(id: number): Promise<void>;
     removeAllBreakPoints(path: string): Promise<void>;
     getBreakPointsList(location: string): Promise<IBreakPoint[]>;
+}
+
+export interface DebuggerOtherCommand {
     jumpToPage(url: string): Promise<void>;
 }
 
-export type DebuggerCommand = DebuggerWorkflowCommand & DebuggerDumpCommand & DebuggerOtherCommand;
+
+
+export type ThreadDebuggerCommand = DebuggerWorkflowCommand & DebuggerDumpCommand & DebuggerBreakPointCommand;
+export type DebuggerCommand = ThreadDebuggerCommand & DebuggerOtherCommand;

@@ -1,292 +1,148 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
-import {
-	StoppedEvent, BreakpointEvent, ContinuedEvent
-} from '@vscode/debugadapter';
-import { WebAssemblyFile } from "./Source"
-import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
-import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint, FileLocation, RuntimeStackFrame } from './DebugCommand';
-import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
-import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
+import { IBreakPoint, FileLocation } from './DebugCommand';
+import { WebAssemblyFileRegistory } from "./WebAssembly/FileRegistory";
+import { Thread } from './DebugThread';
+import { createDebuggerProxy, createRuntimeProxy } from './CDP/CDPProxy';
 
-export class DebugSession {
-
-    sources: WebAssemblyFile[];
-
-    constructor() {
-        this.sources = [];
-    }
-
-    reset() {
-        for (const item of this.sources) {
-            item.free();
-        }
-
-        this.sources = [];
-    }
-
-    loadedWebAssembly(wasm: WebAssemblyFile) {
-        this.sources.push(wasm);
-    }
-
-    findFileFromLocation(loc: Protocol.Debugger.Location) {
-        return  this.sources.filter(
-                    x => x.scriptID == loc.scriptId
-                )[0]?.findFileFromLocation(loc);
-    }
-
-    findAddressFromFileLocation(file: string, line: number) {
-        for (const x of this.sources) {
-            const address = x.findAddressFromFileLocation(file, line);
-
-            if (address) {
-                return {
-                    scriptId: x.scriptID,
-                    line: 0,
-                    column: address
-                };
-            }
-        }
-
-        return undefined;
-    }
-
-    getVariablelistFromAddress(address: number) {
-        for (const x of this.sources) {
-            const list = x.dwarf.variable_name_list(address);
-
-            if (list && list.size() > 0) {
-                return list;
-            }
-        }
-
-        return undefined;
-    }
-
-    getGlobalVariablelist(inst: number) {
-        const list = [];
-
-        for (const x of this.sources) {
-            list.push(x.dwarf.global_variable_name_list(inst));
-        }
-
-        return list;
-    }
-
-    getVariableValue(expr: string, address: number, state: WebAssemblyDebugState) {
-        for (const x of this.sources) {
-            const info = x.dwarf.get_variable_info(
-                expr,
-                state.locals,
-                state.globals,
-                state.stacks,
-                address
-            );
-
-            if (info) {
-                return info;
-            }
-        }
-
-        return undefined;
-    }
+export interface ThreadInfo {
+    threadID: number;
+    threadName: string;
 }
 
-export class DebugSessionManager implements DebuggerCommand {
-    private session?: DebugSession;
+export class DebugSession {
+    private fileRegistory: WebAssemblyFileRegistory;
+    private threads: Map<number, Thread>;
+    private sessionToThreadInfo: Map<string, ThreadInfo>;
+
     private debugger?: ProtocolApi.DebuggerApi;
     private page?: ProtocolApi.PageApi;
     private runtime?: ProtocolApi.RuntimeApi;
+    private target?: ProtocolApi.TargetApi;
+
+    private defaultThread?: Thread;
+
     private debugAdapter: DebugAdapter;
-
-    private breakPoints: RuntimeBreakPoint[] = [];
-
-    private readonly DummyThreadID = 1;
-
-    private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
-    private scriptParsed?: Promise<void>;
-
-    private steppingOver = false;
-    private steppingIn = false;
+    private lastThreadId: number = 1;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
-      
-        this.sessionState = new RunningDebugSessionState();
+        this.fileRegistory = new WebAssemblyFileRegistory();
+        this.threads = new Map();
+        this.sessionToThreadInfo = new Map();
     }
 
-    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi) {
+    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi, _target?: ProtocolApi.TargetApi) {
         this.debugger = _debugger;
         this.page = _page;
         this.runtime = _runtime;
+        this.target = _target;
 
-        this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
-        this.debugger.on('paused', (e) => void this.onPaused(e));
-        this.debugger.on('resumed', () => void this.onResumed());
-        if (this.page) this.page.on('loadEventFired', (e) => void this.onLoad(e));
+        this.page?.on("loadEventFired", (e) => void this.onLoad(e));
+        this.target?.on("attachedToTarget", (e) => void this.onThreadCreated(e));
+        this.target?.on("detachedFromTarget", (e) => void this.onThreadDestroyed(e));
+        
+        this.target?.setDiscoverTargets({ discover: true });
+        this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
 
-        this.session = new DebugSession();
+        this.defaultThread = new Thread(this.debugAdapter, 0, this.fileRegistory);
+        this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
+
+        this.reset();
     }
 
-    async stepOver() {
-        this.steppingOver = true;
-        await this.sessionState.stepOver();
+    private reset() {
+        this.threads.clear();
+        this.sessionToThreadInfo.clear();
+        this.lastThreadId = 1;
+
+        this.threads.set(0, this.defaultThread!);
+        this.sessionToThreadInfo.set("default", { threadID: 0, threadName: "default thread" });
     }
 
-    async stepIn() {
-        this.steppingIn = true;
-        await this.sessionState.stepIn();
+    async stepOver(threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        await thread?.stepOver();
     }
 
-    async stepOut() {   
-        await this.sessionState.stepOut();
+    async stepIn(threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        await thread?.stepIn();
     }
 
-    async continue() {
-        await this.sessionState.continue();
+    async stepOut(threadId?: number) {   
+        const thread = this.threads.get(threadId || 0);
+        await thread?.stepOut();
     }
 
-    async getStackFrames() {
-        return await this.sessionState.getStackFrames();
+    async continue(threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        await thread?.continue();
     }
 
-    async setFocusedFrame(index: number) {
-        await this.sessionState.setFocusedFrame(index);
+    async getStackFrames(threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return (await thread?.getStackFrames()) || [];
     }
 
-    async showLine() {
-        await this.sessionState.showLine();
+    async setFocusedFrame(index: number, threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return await thread?.setFocusedFrame(index);
     }
 
-    async listVariable(variableReference?: number) {
-        return await this.sessionState.listVariable(variableReference);
+    async showLine(threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return await thread?.showLine();
     }
 
-    async listGlobalVariable(variableReference?: number) {
-        return await this.sessionState.listGlobalVariable(variableReference);
+    async listVariable(variableReference?: number, threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return await thread!.listVariable(variableReference);
     }
 
-    async dumpVariable(expr: string) {
-        return await this.sessionState.dumpVariable(expr);
+    async listGlobalVariable(variableReference?: number, threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return await thread!.listGlobalVariable(variableReference);
+    }
+
+    async dumpVariable(expr: string, threadId?: number) {
+        const thread = this.threads.get(threadId || 0);
+        return await thread?.dumpVariable(expr);
     }
 
     async setBreakPoint(location: FileLocation): Promise<IBreakPoint> {
-        const debugline = location.line;
-        const debugfilename = location.file;
-        const bpID =
-            this.breakPoints.length > 0
-            ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1
-            : 1;
+        const breakPoints = [];
 
-        const bpInfo = {
-            id: bpID,
-            file: debugfilename,
-            line: debugline,
-            verified: false
-        };
+        for (const thread of this.threads.values()) {
+            const breakPoint = await thread.setBreakPoint(location);
+            breakPoints.push(breakPoint);
+        }
 
-        this.breakPoints.push(bpInfo);
-
-        await this.updateBreakPoint();
-
-        return bpInfo;
-    }
-
-    async updateBreakPoint() {
-        const promises = this.breakPoints.filter(x => !x.verified).map(async bpInfo => {
-            if (!this.session) {
-                return bpInfo;
-            }
-
-            const wasmLocation = this.session.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
-    
-            if (!wasmLocation) {
-                console.error("cannot find address of specified file");
-                return bpInfo;
-            }
-    
-            const wasmDebuggerLocation = { 
-                scriptId: wasmLocation.scriptId,  
-                lineNumber: wasmLocation.line,
-                columnNumber: wasmLocation.column
-            };
-    
-            console.error(`update breakpoint ${bpInfo.file}:${bpInfo.line} -> ${wasmLocation.column}`);
-
-            const bp = await this.debugger!.setBreakpoint({ 
-                location: wasmDebuggerLocation
-            }).catch(e => {
-                console.error(e);
-                return null;
-            });
-
-            if (bp) {
-                const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
-
-                bpInfo.file = correspondingLocation.file();
-                bpInfo.line = correspondingLocation.line!;
-                bpInfo.rawId = bp.breakpointId;
-                bpInfo.verified = true;
-            }
-
-            return bpInfo;
-        });
-
-        const bps = await Promise.all(promises);
-        bps.filter(x => x.verified).forEach(x => {
-            this.debugAdapter.sendEvent(new BreakpointEvent('changed', x));
-        });
+        return breakPoints[0];
     }
 
     async removeBreakPoint(id: number) {
-
-        const promises = this.breakPoints
-            .filter(x => x.id == id)
-            .filter(x => !!x.rawId)
-            .map(async x => {
-                await this.debugger?.removeBreakpoint({
-                    breakpointId: x.rawId!
-                })
-            })
-
-        this.breakPoints = this.breakPoints.filter(x => x.id != id);   
-        await Promise.all(promises);
+        for (const thread of this.threads.values()) {
+            await thread.removeBreakPoint(id);
+        }
     }
 
     async removeAllBreakPoints(path: string) {
-        const promises = this.breakPoints
-            .filter(x => x.file == path)
-            .filter(x => !!x.rawId)
-            .map(async x => {
-                await this.debugger?.removeBreakpoint({
-                    breakpointId: x.rawId!
-                })
-            });
-
-        this.breakPoints = this.breakPoints.filter(x => x.file != path);  
-        await Promise.all(promises);
+        for (const thread of this.threads.values()) {
+            await thread.removeAllBreakPoints(path);
+        }
     }
 
-    getBreakPointsList(location: string): Promise<IBreakPoint[]> {
-        const fileInfo = location.split(':');
-        
-        if (fileInfo.length < 2)
-        {
-            return Promise.resolve([]);
+    async getBreakPointsList(location: string): Promise<IBreakPoint[]> {
+        const breakPoints: IBreakPoint[] = [];
+
+        for (const thread of this.threads.values()) {
+            const breakPoint = await thread.getBreakPointsList(location);
+            breakPoints.push(...breakPoint);
         }
 
-        const debugfilename = fileInfo[0];
-        const debugline = Number(fileInfo[1]);
-
-        return Promise.resolve(this.breakPoints.filter(x => {
-                return x.file == debugfilename && x.line == debugline;
-            }).map(x => {
-                return {
-                    ...x,
-                    verified: true
-                };
-            }));
+        return breakPoints;
     }
 
     async jumpToPage(url: string) {
@@ -295,84 +151,38 @@ export class DebugSessionManager implements DebuggerCommand {
         });
     }
 
-    private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
-        if (e.scriptLanguage == "WebAssembly") {
-            console.error(`Start Loading ${e.url}...`);
-            
-            this.scriptParsed = (async () => {
-                const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
-                const buffer = Buffer.from(response?.bytecode || '', 'base64');
-
-                const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
-                this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, container));
-
-                console.error(`Finish Loading ${e.url}`);
-
-                await this.updateBreakPoint();
-            })();
-        }
+    getThreadList(): ThreadInfo[] {
+        return [...this.sessionToThreadInfo.values()];
     }
 
-    private lastPausedLocation?: RuntimeStackFrame;
+    private onThreadCreated(e: Protocol.Target.AttachedToTargetEvent) {
+        console.error('Thread Created');
 
-    private async onPaused(e: Protocol.Debugger.PausedEvent) {
-        if (e.reason.startsWith("Break on start")) {
-            await this.debugger?.resume({});
-            return;
-        } else if (e.reason == "instrumentation") {
-            console.error("Instrumentation BreakPoint");
-            if (this.scriptParsed) {
-                console.error("awaiting scriptParsed...");
-                await this.scriptParsed;
-            }
-            await this.debugger?.resume({});
-            return;
-        }
+        const threadID = this.lastThreadId;
+        this.lastThreadId++;
+        
+        const newThread = new Thread(this.debugAdapter, threadID, this.fileRegistory);
 
-        console.error("Hit BreakPoint");
+        const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
+        const runtime = createRuntimeProxy(this.runtime!, e.sessionId);
 
-        const stackFrames = e.callFrames.map((v, i) => {
-            const dwarfLocation = this.session!.findFileFromLocation(v.location);
+        newThread.setChromeDebuggerApi(_debugger, runtime);
 
-            return {
-                frame: v,
-                stack: {
-                    index: i,
-                    name: v.functionName,
-                    instruction: v.location.columnNumber,
-                    file: dwarfLocation?.file() || v.url,
-                    line: dwarfLocation?.line || v.location.lineNumber,
-                }
-            };
-        });
+        this.threads.set(threadID, newThread);
+        this.sessionToThreadInfo.set(e.sessionId, { threadID, threadName: e.targetInfo.url });
+    }
+    
+    private onThreadDestroyed(e: Protocol.Target.DetachedFromTargetEvent) {
+        console.error('Thread Destroyed');
 
-        if ((this.steppingOver || this.steppingIn)
-            && this.lastPausedLocation?.stack.file == stackFrames[0].stack.file
-            && this.lastPausedLocation?.stack.line == stackFrames[0].stack.line) {
+        const threadInfo = this.sessionToThreadInfo.get(e.sessionId)!;
 
-            if (this.steppingOver) {
-                void this.debugger?.stepOver({});
-            } else {
-                void this.debugger?.stepInto({});
-            }
-        } else {
-            this.steppingOver = false;
-            this.steppingIn = false;
-            this.lastPausedLocation = stackFrames[0];
-
-            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
-            this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.DummyThreadID));
-        }
+        this.threads.delete(threadInfo.threadID);
+        this.sessionToThreadInfo.delete(e.sessionId);
     }
 
-    private onResumed() {
-        this.sessionState = new RunningDebugSessionState();
-        this.debugAdapter.sendEvent(new ContinuedEvent(this.DummyThreadID));
-    }
-
-    private onLoad(e: Protocol.Page.DomContentEventFiredEvent) {
+    private onLoad(_: Protocol.Page.DomContentEventFiredEvent) {
         console.error('Page navigated.');
-        this.breakPoints.forEach(x => x.verified = false);
-        this.session!.reset();
+        this.reset();
     }
 }

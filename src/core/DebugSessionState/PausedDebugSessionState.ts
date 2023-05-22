@@ -2,8 +2,8 @@ import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import { existsSync, readFileSync } from "fs"
 import { DebuggerWorkflowCommand, DebuggerDumpCommand, RuntimeStackFrame, Variable } from '../DebugCommand';
-import { DebugSession } from '../DebugSession';
-import { createWasmValueStore } from "../InterOp";
+import { WebAssemblyFileRegistory } from '../WebAssembly/FileRegistory';
+import { createWasmValueStore } from "../WebAssembly/InterOp";
 
 class MemoryEvaluator {
     private debugger: ProtocolApi.DebuggerApi;
@@ -54,13 +54,13 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
 
     private debugger: ProtocolApi.DebuggerApi;
     private runtime: ProtocolApi.RuntimeApi;
-    private debugSession: DebugSession;
+    private debugSession: WebAssemblyFileRegistory;
     private stackFrames: RuntimeStackFrame[];
     private memoryEvaluator: MemoryEvaluator;
 
     private selectedFrameIndex: number = 0;
 
-    constructor(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi, _debugSession: DebugSession, _stackFrames: RuntimeStackFrame[]) {
+    constructor(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi, _debugSession: WebAssemblyFileRegistory, _stackFrames: RuntimeStackFrame[]) {
         this.debugger = _debugger;
         this.runtime = _runtime;
         this.debugSession = _debugSession;

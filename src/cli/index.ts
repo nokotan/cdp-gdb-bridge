@@ -2,7 +2,7 @@
 
 import CDP from 'chrome-remote-interface';
 import { launch, LaunchedChrome } from 'chrome-launcher';
-import { DebugSessionManager } from '../core/DebugSession'
+import { DebugSession } from '../core/DebugSession'
 import { CommandReader } from './CommandReader'
 import { DebugAdapter } from '../core/DebugAdapterInterface';
 import minimist from 'minimist';
@@ -39,7 +39,7 @@ async function main() {
         // extract domains
         const { Debugger, Page, Runtime, Console } = client;
 
-        const manager = new DebugSessionManager(new DummyDebugAdapter());
+        const manager = new DebugSession(new DummyDebugAdapter());
         manager.setChromeDebuggerApi(Debugger, Page, Runtime);
 
         await Console.enable();

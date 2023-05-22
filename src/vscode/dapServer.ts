@@ -7,7 +7,7 @@ import {
 } from '@vscode/debugadapter';
 import { launch } from 'chrome-launcher';
 import CDP from 'chrome-remote-interface';
-import { DebugSessionManager } from '../core/DebugSession'
+import { DebugSession } from '../core/DebugSession'
 import { Variable } from '../core/DebugCommand';
 import { DebugAdapter } from '../core/DebugAdapterInterface';
 import { basename } from 'path'
@@ -59,7 +59,7 @@ type LaunchRequestArgument = ILaunchRequestArguments & DebugProtocol.LaunchReque
 
 export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdapter {
 
-    private session: DebugSessionManager;
+    private session: DebugSession;
 
 	private client?: CDP.Client;
 
@@ -72,7 +72,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
     constructor(logger?: Logger) {
         super();
 
-		this.session = new DebugSessionManager(this);
+		this.session = new DebugSession(this);
 		this.logger = logger;
     }
 
@@ -99,7 +99,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		response.body.supportsEvaluateForHovers = true;
 		response.body.supportsTerminateRequest = true;
 
-		this.session = new DebugSessionManager(this);
+		this.session = new DebugSession(this);
 
         this.sendResponse(response);
 		this.sendEvent(new InitializedEvent());
@@ -112,9 +112,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
         });
 
         // extract domains
-        const { Debugger, Page, Runtime, Console } = this.client;
+        const { Debugger, Page, Runtime, Target, Console } = this.client;
 
-		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+		this.session.setChromeDebuggerApi(Debugger, Page, Runtime, Target);
 
 		await Console.enable();
 		Console.on("messageAdded", e => {
@@ -250,9 +250,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		});
 
         // extract domains
-        const { Debugger, Page, Runtime, Console } = this.client;
+        const { Debugger, Page, Runtime, Target, Console } = this.client;
 
-		this.session.setChromeDebuggerApi(Debugger, Page, Runtime);
+		this.session.setChromeDebuggerApi(Debugger, Page, Runtime, Target);
 
 		await Console.enable();
 		Console.on("messageAdded", e => {
@@ -353,12 +353,10 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
 	protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
+		const threads = this.session.getThreadList();
 
-		// TODO: multithread support
 		response.body = {
-			threads: [
-				new Thread(1, "thread 1")
-			]
+			threads: threads.map(x => new Thread(x.threadID, x.threadName))
 		};
 		this.sendResponse(response);
 	}
