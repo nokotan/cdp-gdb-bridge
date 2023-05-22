@@ -5,6 +5,7 @@
   "description": "WebAssembly on Chrome cli debugger & vscode extension",
   "author": "kamenokonokotan",
   "publisher": "kamenokosoft",
+  "icon": "images/vscode-wasm-logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/nokotan/cdp-gdb-bridge"
