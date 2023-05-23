@@ -1,27 +1,26 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import {
-	StoppedEvent, BreakpointEvent, ContinuedEvent
+    StoppedEvent, BreakpointEvent, ContinuedEvent
 } from '@vscode/debugadapter';
-import { WebAssemblyFile } from "./WebAssembly/File"
-import { DwarfDebugSymbolContainer, WasmLineInfo } from "../../crates/dwarf/pkg";
 import { DebugAdapter } from './DebugAdapterInterface';
-import { DebuggerWorkflowCommand, DebuggerDumpCommand, DebuggerCommand, WebAssemblyDebugState, RuntimeBreakPoint, IBreakPoint, FileLocation, RuntimeStackFrame, ThreadDebuggerCommand } from './DebugCommand';
+import { DebuggerWorkflowCommand, DebuggerDumpCommand, RuntimeBreakPoint, IBreakPoint, FileLocation, RuntimeStackFrame, ThreadDebuggerCommand } from './DebugCommand';
 import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
 import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
 import { WebAssemblyFileRegistory } from "./WebAssembly/FileRegistory";
-import CDP from 'chrome-remote-interface';
+import { CDPDebugger } from './CDP/CDPDebuggerApi';
 
 export class Thread implements ThreadDebuggerCommand {
     private session: WebAssemblyFileRegistory;
     
-    private debugger?: ProtocolApi.DebuggerApi;
+    private debugger?: ProtocolApi.DebuggerApi & CDPDebugger;
     private runtime?: ProtocolApi.RuntimeApi;
     private debugAdapter: DebugAdapter;
 
     private breakPoints: RuntimeBreakPoint[] = [];
 
     private readonly threadID: number;
+    private readonly sessionID: string;
 
     private sessionState: DebuggerWorkflowCommand & DebuggerDumpCommand;
     private scriptParsed?: Promise<void>;
@@ -29,21 +28,22 @@ export class Thread implements ThreadDebuggerCommand {
     private steppingOver = false;
     private steppingIn = false;
 
-    constructor(_debugAdapter: DebugAdapter, threadID: number, fileRegistory: WebAssemblyFileRegistory) {
+    constructor(_debugAdapter: DebugAdapter, threadID: number, sessionId: string, fileRegistory: WebAssemblyFileRegistory) {
         this.debugAdapter = _debugAdapter;
       
         this.sessionState = new RunningDebugSessionState();
         this.threadID = threadID;
+        this.sessionID = sessionId;
         this.session = fileRegistory;
     }
 
     setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
-        this.debugger = _debugger;
+        this.debugger = _debugger as ProtocolApi.DebuggerApi & CDPDebugger;
         this.runtime = _runtime;
 
-        this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
-        this.debugger.on('paused', (e) => void this.onPaused(e));
-        this.debugger.on('resumed', () => void this.onResumed());
+        this.debugger.on('scriptParsed', (e, x?: string) => this.onScriptLoaded(e, x));
+        this.debugger.on('paused', (e, x?: string) => void this.onPaused(e, x));
+        this.debugger.on('resumed', (x?: string) => void this.onResumed(x));
 
         this.runtime.runIfWaitingForDebugger();
     }
@@ -208,27 +208,39 @@ export class Thread implements ThreadDebuggerCommand {
             }));
     }
 
-    private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
+    private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent, sessionId?: string) {
+        if (!!sessionId && sessionId != this.sessionID) {
+            return;
+        }
+
         console.error(`${e.url}`);
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
             
-            this.scriptParsed = (async () => {
-                const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
-                const buffer = Buffer.from(response?.bytecode || '', 'base64');
-
-                this.session!.loadWebAssembly(e.url, e.scriptId, buffer);
-
-                console.error(`Finish Loading ${e.url}`);
-
-                await this.updateBreakPoint();
-            })();
+            if (this.session.sources.has(e.scriptId)) {
+                this.scriptParsed = Promise.resolve();
+            } else {
+                this.scriptParsed = (async () => {
+                    const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
+                    const buffer = Buffer.from(response?.bytecode || '', 'base64');
+    
+                    this.session!.loadWebAssembly(e.url, e.scriptId, buffer);
+    
+                    console.error(`Finish Loading ${e.url}`);
+    
+                    await this.updateBreakPoint();
+                })();
+            }
         }
     }
 
     private lastPausedLocation?: RuntimeStackFrame;
 
-    private async onPaused(e: Protocol.Debugger.PausedEvent) {
+    private async onPaused(e: Protocol.Debugger.PausedEvent, sessionId?: string) {
+        if (!!sessionId && sessionId != this.sessionID) {
+            return;
+        }
+
         if (e.reason.startsWith("Break on start")) {
             await this.debugger?.resume({});
             return;
@@ -278,7 +290,11 @@ export class Thread implements ThreadDebuggerCommand {
         }
     }
 
-    private onResumed() {
+    private onResumed(sessionId?: string) {
+        if (!!sessionId && sessionId != this.sessionID) {
+            return;
+        }
+
         this.sessionState = new RunningDebugSessionState();
         this.debugAdapter.sendEvent(new ContinuedEvent(this.threadID));
     }

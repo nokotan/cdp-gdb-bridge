@@ -47,7 +47,7 @@ export class DebugSession {
         this.target?.setDiscoverTargets({ discover: true });
         this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
-        this.defaultThread = new Thread(this.debugAdapter, 0, this.fileRegistory);
+        this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
 
         this.reset();
@@ -162,7 +162,7 @@ export class DebugSession {
         const threadID = this.lastThreadId;
         this.lastThreadId++;
         
-        const newThread = new Thread(this.debugAdapter, threadID, this.fileRegistory);
+        const newThread = new Thread(this.debugAdapter, threadID, e.sessionId, this.fileRegistory);
 
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);

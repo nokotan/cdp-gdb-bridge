@@ -165,27 +165,27 @@ export interface CDPDebugger {
     /**
      * Fired when breakpoint is resolved to an actual script and location.
      */
-    on(event: 'breakpointResolved', sessionId: Protocol.Target.SessionID, listener: (params: Protocol.Debugger.BreakpointResolvedEvent) => void): void;
+    on(event: 'breakpointResolved', listener: (params: Protocol.Debugger.BreakpointResolvedEvent, sessionId?: string) => void): void;
 
     /**
      * Fired when the virtual machine stopped on breakpoint or exception or any other stop criteria.
      */
-    on(event: 'paused', sessionId: Protocol.Target.SessionID, listener: (params: Protocol.Debugger.PausedEvent) => void): void;
+    on(event: 'paused', listener: (params: Protocol.Debugger.PausedEvent, sessionId?: string) => void): void;
 
     /**
      * Fired when the virtual machine resumed execution.
      */
-    on(event: 'resumed', sessionId: Protocol.Target.SessionID, listener: () => void): void;
+    on(event: 'resumed', listener: (sessionId?: string) => void): void;
 
     /**
      * Fired when virtual machine fails to parse the script.
      */
-    on(event: 'scriptFailedToParse', sessionId: Protocol.Target.SessionID, listener: (params: Protocol.Debugger.ScriptFailedToParseEvent) => void): void;
+    on(event: 'scriptFailedToParse', listener: (params: Protocol.Debugger.ScriptFailedToParseEvent, sessionId?: string) => void): void;
 
     /**
      * Fired when virtual machine parses script. This event is also fired for all known and uncollected
      * scripts upon enabling debugger.
      */
-    on(event: 'scriptParsed', sessionId: Protocol.Target.SessionID, listener: (params: Protocol.Debugger.ScriptParsedEvent) => void): void;
+    on(event: 'scriptParsed', listener: (params: Protocol.Debugger.ScriptParsedEvent, sessionId?: string) => void): void;
 
 }

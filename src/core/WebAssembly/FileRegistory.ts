@@ -20,12 +20,12 @@ export class WebAssemblyFileRegistory {
     }
 
     loadWebAssembly(url: string, scriptID: string, buffer: Buffer) {
-        if (this.sources.has(url)) {
+        if (this.sources.has(scriptID)) {
             return;
         }
 
         const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
-        this.sources.set(url, new WebAssemblyFile(scriptID, url, container));
+        this.sources.set(scriptID, new WebAssemblyFile(scriptID, url, container));
     }
 
     findFileFromLocation(loc: Protocol.Debugger.Location) {
