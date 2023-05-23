@@ -5,6 +5,7 @@ import { IBreakPoint, FileLocation } from './DebugCommand';
 import { WebAssemblyFileRegistory } from "./WebAssembly/FileRegistory";
 import { Thread } from './DebugThread';
 import { createDebuggerProxy, createRuntimeProxy } from './CDP/CDPProxy';
+import { ThreadEvent } from '@vscode/debugadapter';
 
 export interface ThreadInfo {
     threadID: number;
@@ -44,7 +45,7 @@ export class DebugSession {
         this.target?.on("detachedFromTarget", (e) => void this.onThreadDestroyed(e));
         
         this.target?.setDiscoverTargets({ discover: true });
-        this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+        this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
         this.defaultThread = new Thread(this.debugAdapter, 0, this.fileRegistory);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
@@ -166,10 +167,13 @@ export class DebugSession {
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);
 
+        _debugger.enable({});
         newThread.setChromeDebuggerApi(_debugger, runtime);
 
         this.threads.set(threadID, newThread);
         this.sessionToThreadInfo.set(e.sessionId, { threadID, threadName: e.targetInfo.url });
+
+        this.debugAdapter.sendEvent(new ThreadEvent("started", threadID));
     }
     
     private onThreadDestroyed(e: Protocol.Target.DetachedFromTargetEvent) {
@@ -179,6 +183,8 @@ export class DebugSession {
 
         this.threads.delete(threadInfo.threadID);
         this.sessionToThreadInfo.delete(e.sessionId);
+
+        this.debugAdapter.sendEvent(new ThreadEvent("exited", threadInfo.threadID));
     }
 
     private onLoad(_: Protocol.Page.DomContentEventFiredEvent) {

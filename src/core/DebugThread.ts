@@ -44,8 +44,8 @@ export class Thread implements ThreadDebuggerCommand {
         this.debugger.on('scriptParsed', (e) => this.onScriptLoaded(e));
         this.debugger.on('paused', (e) => void this.onPaused(e));
         this.debugger.on('resumed', () => void this.onResumed());
-      
-        this.session = new WebAssemblyFileRegistory();
+
+        this.runtime.runIfWaitingForDebugger();
     }
 
     async stepOver() {
@@ -209,7 +209,7 @@ export class Thread implements ThreadDebuggerCommand {
     }
 
     private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent) {
-        console.error(`scriptParsed.executionContextId: ${e.executionContextId}`);
+        console.error(`${e.url}`);
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
             
@@ -217,8 +217,7 @@ export class Thread implements ThreadDebuggerCommand {
                 const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
                 const buffer = Buffer.from(response?.bytecode || '', 'base64');
 
-                const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
-                this.session!.loadedWebAssembly(new WebAssemblyFile(e.scriptId, e.url, container));
+                this.session!.loadWebAssembly(e.url, e.scriptId, buffer);
 
                 console.error(`Finish Loading ${e.url}`);
 

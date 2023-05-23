@@ -1,6 +1,7 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import { WebAssemblyFile } from "./File"
 import { WebAssemblyDebugState } from '../DebugCommand';
+import { DwarfDebugSymbolContainer } from '../../../crates/dwarf/pkg';
 
 export class WebAssemblyFileRegistory {
 
@@ -18,8 +19,13 @@ export class WebAssemblyFileRegistory {
         this.sources.clear();
     }
 
-    loadedWebAssembly(wasm: WebAssemblyFile) {
-        this.sources.set(wasm.url, wasm);
+    loadWebAssembly(url: string, scriptID: string, buffer: Buffer) {
+        if (this.sources.has(url)) {
+            return;
+        }
+
+        const container = DwarfDebugSymbolContainer.new(new Uint8Array(buffer));
+        this.sources.set(url, new WebAssemblyFile(scriptID, url, container));
     }
 
     findFileFromLocation(loc: Protocol.Debugger.Location) {

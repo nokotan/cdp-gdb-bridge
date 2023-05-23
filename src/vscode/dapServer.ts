@@ -333,22 +333,22 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
     protected async stepInRequest(response: DebugProtocol.StepInResponse, args: DebugProtocol.StepInArguments) {
-		await this.session.stepIn();
+		await this.session.stepIn(args.threadId);
 		this.sendResponse(response);
 	}
 
 	protected async stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments) {
-		await this.session.stepOut();
+		await this.session.stepOut(args.threadId);
 		this.sendResponse(response);
 	}
 
 	protected async nextRequest(response: DebugProtocol.NextResponse, args: DebugProtocol.NextArguments) {
-		await this.session.stepOver();
+		await this.session.stepOver(args.threadId);
 		this.sendResponse(response);
 	}
 
     protected async continueRequest(response: DebugProtocol.ContinueResponse, args: DebugProtocol.ContinueArguments) {
-		await this.session.continue();
+		await this.session.continue(args.threadId);
 		this.sendResponse(response);
 	}
 
@@ -367,7 +367,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const maxLevels = typeof args.levels === 'number' ? args.levels : 1000;
 		const endFrame = startFrame + maxLevels;
 
-		const frames = await this.session.getStackFrames();
+		const frames = await this.session.getStackFrames(args.threadId);
 		const framesSlice = frames.slice(startFrame, endFrame);
 
 		response.body = {
