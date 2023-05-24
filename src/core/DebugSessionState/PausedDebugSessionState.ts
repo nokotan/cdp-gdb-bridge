@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "fs"
 import { DebuggerWorkflowCommand, DebuggerDumpCommand, RuntimeStackFrame, Variable } from '../DebugCommand';
 import { WebAssemblyFileRegistory } from '../WebAssembly/FileRegistory';
 import { createWasmValueStore } from "../WebAssembly/InterOp";
+import { VariableInfo } from '../../../crates/dwarf/pkg';
 
 class MemoryEvaluator {
     private debugger: ProtocolApi.DebuggerApi;
@@ -193,7 +194,13 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             frame.state = await frame.statePromise;
         }
 
-        const wasmVariable = this.debugSession.getVariableValue(expr, frame.stack.instruction!, frame.state);
+        let wasmVariable: VariableInfo | undefined;
+        
+        try {
+            wasmVariable = this.debugSession.getVariableValue(expr, frame.stack.instruction!, frame.state);
+        } catch (e) {
+            console.error(e);
+        }
 
         if (!wasmVariable) {
             return;

@@ -37,7 +37,7 @@ export class Thread implements ThreadDebuggerCommand {
         this.session = fileRegistory;
     }
 
-    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
+    async setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
         this.debugger = _debugger as ProtocolApi.DebuggerApi & CDPDebugger;
         this.runtime = _runtime;
 
@@ -45,7 +45,7 @@ export class Thread implements ThreadDebuggerCommand {
         this.debugger.on('paused', (e, x?: string) => void this.onPaused(e, x));
         this.debugger.on('resumed', (x?: string) => void this.onResumed(x));
 
-        this.runtime.runIfWaitingForDebugger();
+        await this.runtime.runIfWaitingForDebugger();
     }
 
     async stepOver() {

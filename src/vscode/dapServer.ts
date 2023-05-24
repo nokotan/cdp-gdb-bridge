@@ -293,10 +293,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				file: path,
 				line: l
 			};
-			const { verified, line, id } = await this.session.setBreakPoint(fileSpec)!;
-			const bp = new Breakpoint(verified, line) as DebugProtocol.Breakpoint;
-			bp.id= id;
-			return bp;
+			const bp = await this.session.setBreakPoint(fileSpec) || { verified: false };
+			return bp as DebugProtocol.Breakpoint;
 		});
 		const actualBreakpoints = await Promise.all<DebugProtocol.Breakpoint>(actualBreakpoints0);
 		console.error(actualBreakpoints);
@@ -369,6 +367,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 		const frames = await this.session.getStackFrames(args.threadId);
 		const framesSlice = frames.slice(startFrame, endFrame);
+
+		await this.session.setFocusedThread(args.threadId);
 
 		response.body = {
 			stackFrames: framesSlice.map((f, ix) => {

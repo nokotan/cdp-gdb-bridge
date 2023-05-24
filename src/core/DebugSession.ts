@@ -26,12 +26,16 @@ export class DebugSession {
 
     private debugAdapter: DebugAdapter;
     private lastThreadId: number = 1;
+    private focusedThreadId: number = 0;
+
+    private requestedBpLists: Map<string, FileLocation[]>;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
         this.fileRegistory = new WebAssemblyFileRegistory();
         this.threads = new Map();
         this.sessionToThreadInfo = new Map();
+        this.requestedBpLists = new Map();
     }
 
     setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi, _target?: ProtocolApi.TargetApi) {
@@ -56,6 +60,7 @@ export class DebugSession {
     private reset() {
         this.threads.clear();
         this.sessionToThreadInfo.clear();
+        this.requestedBpLists.clear();
         this.lastThreadId = 1;
 
         this.threads.set(0, this.defaultThread!);
@@ -63,57 +68,67 @@ export class DebugSession {
     }
 
     async stepOver(threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         await thread?.stepOver();
     }
 
     async stepIn(threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         await thread?.stepIn();
     }
 
     async stepOut(threadId?: number) {   
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         await thread?.stepOut();
     }
 
     async continue(threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         await thread?.continue();
     }
 
     async getStackFrames(threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return (await thread?.getStackFrames()) || [];
     }
 
+    async setFocusedThread(threadId: number) {
+        this.focusedThreadId = threadId;
+    }
+
     async setFocusedFrame(index: number, threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return await thread?.setFocusedFrame(index);
     }
 
     async showLine(threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return await thread?.showLine();
     }
 
     async listVariable(variableReference?: number, threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return await thread!.listVariable(variableReference);
     }
 
     async listGlobalVariable(variableReference?: number, threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return await thread!.listGlobalVariable(variableReference);
     }
 
     async dumpVariable(expr: string, threadId?: number) {
-        const thread = this.threads.get(threadId || 0);
+        const thread = this.threads.get(threadId || this.focusedThreadId);
         return await thread?.dumpVariable(expr);
     }
 
     async setBreakPoint(location: FileLocation): Promise<IBreakPoint> {
         const breakPoints = [];
+
+        if (!this.requestedBpLists.has(location.file)) {
+            this.requestedBpLists.set(location.file, [ location ]);
+        } else {
+            this.requestedBpLists.get(location.file)?.push(location);
+        }
 
         for (const thread of this.threads.values()) {
             const breakPoint = await thread.setBreakPoint(location);
@@ -130,6 +145,8 @@ export class DebugSession {
     }
 
     async removeAllBreakPoints(path: string) {
+        this.requestedBpLists.get(path)?.splice(0);
+
         for (const thread of this.threads.values()) {
             await thread.removeAllBreakPoints(path);
         }
@@ -156,7 +173,7 @@ export class DebugSession {
         return [...this.sessionToThreadInfo.values()];
     }
 
-    private onThreadCreated(e: Protocol.Target.AttachedToTargetEvent) {
+    private async onThreadCreated(e: Protocol.Target.AttachedToTargetEvent) {
         console.error('Thread Created');
 
         const threadID = this.lastThreadId;
@@ -167,8 +184,14 @@ export class DebugSession {
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);
 
-        _debugger.enable({});
-        newThread.setChromeDebuggerApi(_debugger, runtime);
+        await _debugger.enable({});
+        await newThread.setChromeDebuggerApi(_debugger, runtime);
+
+        for (const bpList of this.requestedBpLists.values()) {
+            for (const bp of bpList) {
+                await newThread.setBreakPoint(bp);
+            }
+        }
 
         this.threads.set(threadID, newThread);
         this.sessionToThreadInfo.set(e.sessionId, { threadID, threadName: e.targetInfo.url });

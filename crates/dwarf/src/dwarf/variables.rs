@@ -93,7 +93,7 @@ fn variables_in_unit_entry_recursive(
 ) -> Result<()> {
     let mut children = node.children();
 
-    if *group_id < 10000 {
+    if 1000 <= *group_id && *group_id < 10000 {
         *group_id = (*group_id - 1000 + 1) * 10000;
     } else {
         *group_id += 1;
