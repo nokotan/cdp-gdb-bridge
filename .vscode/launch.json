@@ -35,10 +35,12 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
-			"outFiles": [
-				"${workspaceFolder}/dist/ext/**/*.js",
-				"${workspaceFolder}/dist/ext/**/*.wasm",
-			]
+            "outFiles": [
+                "${workspaceFolder}/packed/*.js",
+                "${workspaceFolder}/packed/*.js.map",
+                "${workspaceFolder}/packed/*.wasm",
+            ],
+            "sourceMaps": true
 		},
     ]
 }
