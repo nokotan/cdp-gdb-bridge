@@ -204,7 +204,7 @@ export class Thread implements ThreadDebuggerCommand {
             console.error(`Start Loading ${e.url}...`);
             
             if (this.fileRegistory.sources.has(e.scriptId)) {
-                (async () => {
+                void (async () => {
                     await this.scriptParsed;
                     await this.updateBreakPoint();
                 })();
@@ -246,7 +246,7 @@ export class Thread implements ThreadDebuggerCommand {
         console.error("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
-            const dwarfLocation = this.fileRegistory!.findFileFromLocation(v.location);
+            const dwarfLocation = this.fileRegistory.findFileFromLocation(v.location);
 
             return {
                 frame: v,
@@ -274,7 +274,7 @@ export class Thread implements ThreadDebuggerCommand {
             this.steppingIn = false;
             this.lastPausedLocation = stackFrames[0];
 
-            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.fileRegistory!, stackFrames);
+            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.fileRegistory, stackFrames);
             this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.threadID));
         }
     }

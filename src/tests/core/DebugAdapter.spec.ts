@@ -8,7 +8,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-    dc.stop();
+    void dc.stop();
 })
 
 test('should run program to the end', () => {

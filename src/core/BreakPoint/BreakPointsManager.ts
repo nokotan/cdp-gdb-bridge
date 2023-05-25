@@ -19,7 +19,7 @@ export class BreakPointsManager {
 
     private breakPoints: BreakPointsList = new Map();
 
-    private lastBreakpointId: number = 0;
+    private lastBreakpointId = 0;
 
     setBreakPoint(location: FileLocation): number {
         const id = this.lastBreakpointId;

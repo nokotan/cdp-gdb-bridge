@@ -15,7 +15,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-    dc.stop();
+    void dc.stop();
     server.close();
 })
 

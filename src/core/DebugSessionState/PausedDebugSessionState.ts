@@ -39,7 +39,7 @@ class MemoryEvaluator {
                 returnByValue: true
             });
     
-            const values = Object.values(evalResult.result.value) as number[];
+            const values = Object.values(evalResult.result.value as ArrayLike<number>);
             this.pendingEvaluations.delete(address);
             this.evaluationCache.set(address, values);
 
@@ -59,7 +59,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
     private stackFrames: RuntimeStackFrame[];
     private memoryEvaluator: MemoryEvaluator;
 
-    private selectedFrameIndex: number = 0;
+    private selectedFrameIndex = 0;
 
     constructor(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi, _debugSession: WebAssemblyFileRegistory, _stackFrames: RuntimeStackFrame[]) {
         this.debugger = _debugger;
@@ -85,15 +85,16 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
         await this.debugger.resume({});
     }
 
-    async getStackFrames() {
-        return this.stackFrames.map(x => x.stack);
+    getStackFrames() {
+        return Promise.resolve(this.stackFrames.map(x => x.stack));
     }
 
-    async setFocusedFrame(index: number) {
+    setFocusedFrame(index: number) {
         this.selectedFrameIndex = index;
+        return Promise.resolve();
     }
 
-    async showLine() {  
+    showLine() {  
         const frame = this.stackFrames[this.selectedFrameIndex];
 
         if (existsSync(frame.stack.file)) {
@@ -105,17 +106,19 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
                 console.error((i + 1 == frame.stack.line ? '->' : '  ') + ` ${i + 1}  ${lines[i]}`);
             }
         }
+
+        return Promise.resolve();
     }
 
-    async listVariable(variableReference?: number) {
+    listVariable(variableReference?: number) {
         const frame = this.stackFrames[this.selectedFrameIndex];
         const varlist = this.debugSession.getVariablelistFromAddress(frame.stack.instruction!);
 
         if (!varlist) {
-            return [];
+            return Promise.resolve([]);
         }
 
-        let list: Variable[] = [];
+        const list: Variable[] = [];
 
         for (let i = 0; i < varlist.size(); i++)
         {
@@ -139,18 +142,18 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             }
         }
 
-        return list;
+        return Promise.resolve(list);
     }
 
-    async listGlobalVariable(variableReference?: number) {
+    listGlobalVariable(variableReference?: number) {
         const frame = this.stackFrames[this.selectedFrameIndex];
         const varlists = this.debugSession.getGlobalVariablelist(frame.stack.instruction!);
 
         if (varlists.length <= 0) {
-            return [];
+            return Promise.resolve([]);
         }
 
-        let list: Variable[] = [];
+        const list: Variable[] = [];
 
         for (const varlist of varlists) {
             if (!varlist) {
@@ -180,7 +183,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             }
         }
 
-        return list;
+        return Promise.resolve(list);
     }
 
     async dumpVariable(expr: string) {
@@ -230,7 +233,7 @@ export class PausedDebugSessionState implements DebuggerWorkflowCommand, Debugge
             // TODO: no longer needed for node v14.x?
             if (wasmStacks.length > 0 && wasmStacks[0].value!.objectId) {
                 wasmStacks = (await this.runtime.getProperties({
-                    objectId: wasmStacks[0].value!.objectId!,
+                    objectId: wasmStacks[0].value!.objectId,
                 })).result;
             }
     

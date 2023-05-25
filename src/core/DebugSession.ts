@@ -27,8 +27,8 @@ export class DebugSession {
     private defaultThread?: Thread;
 
     private debugAdapter: DebugAdapter;
-    private lastThreadId: number = 1;
-    private focusedThreadId: number = 0;
+    private lastThreadId = 1;
+    private focusedThreadId = 0;
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
@@ -48,13 +48,13 @@ export class DebugSession {
         this.target?.on("attachedToTarget", (e) => void this.onThreadCreated(e));
         this.target?.on("detachedFromTarget", (e) => void this.onThreadDestroyed(e));
         
-        this.target?.setDiscoverTargets({ discover: true });
-        this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+        void this.target?.setDiscoverTargets({ discover: true });
+        void this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
         this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory, this.breakpoints);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
 
-        this.threads.set(0, this.defaultThread!);
+        this.threads.set(0, this.defaultThread);
     }
 
     private reset() {
@@ -91,7 +91,7 @@ export class DebugSession {
         return (await thread?.getStackFrames()) || [];
     }
 
-    async setFocusedThread(threadId: number) {
+    setFocusedThread(threadId: number) {
         this.focusedThreadId = threadId;
     }
 
@@ -178,7 +178,7 @@ export class DebugSession {
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);
 
-        await newThread.setChromeDebuggerApi(_debugger, runtime);
+        newThread.setChromeDebuggerApi(_debugger, runtime);
         await newThread.activate();
         await newThread.updateBreakPoint();
 

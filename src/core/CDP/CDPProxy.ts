@@ -1,21 +1,20 @@
+/* eslint @typescript-eslint/no-unsafe-return: 1 */
+/* eslint @typescript-eslint/no-unsafe-assignment: 1 */
+
 import { ProtocolProxyApi } from 'devtools-protocol/types/protocol-proxy-api';
-import { RuntimeApi } from './CDPRuntimeApi';
-import { CDPDebugger } from './CDPDebuggerApi';
 
 export function createDebuggerProxy(_debugger: ProtocolProxyApi.DebuggerApi, sessionId: string): ProtocolProxyApi.DebuggerApi {
     const handlerObject = {
         get(_target: object, methodName: string): any {
             if (methodName === "on") {
-                return function() {
-                    const eventName = arguments[0];
-                    const args = [...arguments].slice(1);
-                    const originalFunction = Reflect.get(_debugger, eventName) as Function;
+                return function(eventName: string, ...args: any[]) {
+                    const originalFunction = Reflect.get(_debugger, eventName) as (id: string, ...args: any[]) => any;
                     return originalFunction.apply(_debugger, [sessionId, ...args]);
                 }
             } else {
-                return function() {
-                    const originalFunction = Reflect.get(_debugger, methodName) as Function;
-                    return originalFunction.apply(_debugger, [...arguments, sessionId]);
+                return function(...args: any[]) {
+                    const originalFunction = Reflect.get(_debugger, methodName) as (...args: any[]) => any;
+                    return originalFunction.apply(_debugger, [...args, sessionId]);
                 }
             }
         }
@@ -28,16 +27,14 @@ export function createRuntimeProxy(_debugger: ProtocolProxyApi.RuntimeApi, sessi
     const handlerObject = {
         get(_target: object, methodName: string, receiver: any): any {
             if (methodName === "on") {
-                return function() {
-                    const eventName = arguments[0];
-                    const args = [...arguments].slice(1);
-                    const originalFunction = Reflect.get(_debugger, eventName) as Function;
+                return function(eventName: string, ...args: any[]) {
+                    const originalFunction = Reflect.get(_debugger, eventName) as (id: string, ...args: any[]) => any;
                     return originalFunction.apply(_debugger, [sessionId, ...args]);
                 }
             } else {
-                return function() {
-                    const originalFunction = Reflect.get(_debugger, methodName) as Function;
-                    return originalFunction.apply(_debugger, [...arguments, sessionId]);
+                return function(...args: any[]) {
+                    const originalFunction = Reflect.get(_debugger, methodName) as (...args: any[]) => any;
+                    return originalFunction.apply(_debugger, [...args, sessionId]);
                 }
             }
         }

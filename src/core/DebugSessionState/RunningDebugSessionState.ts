@@ -1,38 +1,44 @@
 import { DebuggerWorkflowCommand, DebuggerDumpCommand } from '../DebugCommand';
 
 export class RunningDebugSessionState implements DebuggerWorkflowCommand, DebuggerDumpCommand {
-    async stepOver() {
+    stepOver() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
-    async stepIn() {
+    stepIn() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
-    async stepOut() {
+    stepOut() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
-    async continue() {
+    continue() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
-    async getStackFrames() {
+    getStackFrames() {
         console.warn('Debugger not paused!');
-        return [];
+        return Promise.resolve([]);
     }
-    async showLine() {
+    showLine() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
-    async listVariable() {
+    listVariable() {
         console.warn('Debugger not paused!');
-        return [];
+        return Promise.resolve([]);
     }
-    async listGlobalVariable() {
+    listGlobalVariable() {
         console.warn('Debugger not paused!');
-        return [];
+        return Promise.resolve([]);
     }
-    async dumpVariable() {
+    dumpVariable() {
         console.warn('Debugger not paused!');
-        return undefined;
+        return Promise.resolve(undefined);
     }
-    async setFocusedFrame() {
+    setFocusedFrame() {
         console.warn('Debugger not paused!');
+        return Promise.resolve();
     }
 }

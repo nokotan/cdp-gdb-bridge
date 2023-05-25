@@ -370,7 +370,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		const frames = await this.session.getStackFrames(args.threadId);
 		const framesSlice = frames.slice(startFrame, endFrame);
 
-		await this.session.setFocusedThread(args.threadId);
+		this.session.setFocusedThread(args.threadId);
 
 		response.body = {
 			stackFrames: framesSlice.map((f, ix) => {
