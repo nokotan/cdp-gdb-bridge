@@ -53,6 +53,8 @@ export class DebugSession {
 
         this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory, this.breakpoints);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
+
+        this.threads.set(0, this.defaultThread!);
     }
 
     private reset() {

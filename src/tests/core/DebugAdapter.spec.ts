@@ -20,7 +20,7 @@ test('should run program to the end', () => {
 
 test('should hit breakpoint', async () => {
     const breakPoint = {
-        path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
+        path: "C:/emscripten-simple-app/Main.cpp",
         line: 3
     };
     await Promise.all([
@@ -44,7 +44,7 @@ test('should hit breakpoint', async () => {
 
 test('should step line by line', async () => {
     const breakPoint = {
-        path: "/Volumes/SHARED/Visual Studio 2017/EmscriptenTest/Main.cpp",
+        path: "C:/emscripten-simple-app/Main.cpp",
         line: 3
     };
   

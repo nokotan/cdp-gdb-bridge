@@ -76,14 +76,19 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		this.logger = logger;
     }
 
-	private async terminate(client?: CDP.Client, launchedProcess?: ChildProcess) {
-		if (client) {
+	private async terminate() {
+		if (this.client) {
             console.error('Session Closed.');
-            await client.close();
+            await this.client.close();
+
+			this.client = undefined;
         }
 
-        if (launchedProcess) {
-            launchedProcess.kill();
+        if (this.launchedProcess) {
+			console.error('Process Closed.');
+            this.launchedProcess.kill();
+
+			this.launchedProcess = undefined;
         }
 	} 
 
@@ -210,8 +215,6 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				const launchedProcess = spawn(nodeExecitable, [ `--inspect-brk=${port}`, args.program! ], { cwd: args.cwd });
 				let textBuffer = "";
 
-				launchedProcess.on('exit', () => { console.error('Process Exited.') });
-
 				launchedProcess.stderr?.on('data', (d: Buffer) => { 
 					textBuffer += d.toString();
 
@@ -222,7 +225,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 
 						// FIXME
 						if (text.trim() === "Waiting for the debugger to disconnect...") {
-							void this.terminate(client, launchedProcess);
+							void this.terminate();
 						}
 					}
 
@@ -245,7 +248,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 		console.error("Session Opened.");
 
 		this.launchedProcess?.on('exit', () => { 
-			void this.terminate(client, undefined); 
+			console.error("Process terminated");
 			this.sendEvent(new TerminatedEvent());
 		});
 
@@ -380,6 +383,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 					sf.name = `${f.name} ${address}`; 
 					sf.instructionPointerReference = address;
 				}
+				sf.source = { path: f.file };
 
 				return sf;
 			}),
@@ -458,8 +462,9 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 	}
 
 	protected async terminateRequest(response: DebugProtocol.TerminateResponse, args: DebugProtocol.TerminateArguments, request?: DebugProtocol.Request) {
+		console.error("terminate Request");
+		await this.terminate();
 		this.sendResponse(response);
-		await this.terminate(this.client, this.launchedProcess);
 	}
 
 	private createSource(filePath: string): Source {

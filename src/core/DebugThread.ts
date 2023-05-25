@@ -155,7 +155,7 @@ export class Thread implements ThreadDebuggerCommand {
     
             console.error(`update breakpoint ${bp.file}:${bp.line} -> ${wasmLocation.column}`);
 
-            const rawBp = await this.debugger?.setBreakpointByUrl(wasmDebuggerLocation)
+            const rawBp = await this.debugger?.setBreakpoint({ location: wasmDebuggerLocation })
                 .catch(e => {
                     console.error(e);
                     return null;
@@ -200,7 +200,6 @@ export class Thread implements ThreadDebuggerCommand {
             return;
         }
 
-        console.error(`${e.url}`);
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
             
