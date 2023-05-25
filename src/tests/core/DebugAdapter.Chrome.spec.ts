@@ -76,7 +76,7 @@ test('should step line by line on chrome', async () => {
             path: breakPoint.path,
             line: breakPoint.line + 1
         }),
-        dc.nextRequest({ threadId: 1 })
+        dc.nextRequest({ threadId: 0 })
     ]);
     await Promise.all([           
         dc.waitForEvent("terminated"),
