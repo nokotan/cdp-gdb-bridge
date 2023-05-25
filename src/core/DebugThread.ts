@@ -4,20 +4,30 @@ import {
     StoppedEvent, BreakpointEvent, ContinuedEvent
 } from '@vscode/debugadapter';
 import { DebugAdapter } from './DebugAdapterInterface';
-import { DebuggerWorkflowCommand, DebuggerDumpCommand, RuntimeBreakPoint, IBreakPoint, FileLocation, RuntimeStackFrame, ThreadDebuggerCommand } from './DebugCommand';
+import { DebuggerWorkflowCommand, DebuggerDumpCommand, FileLocation, RuntimeStackFrame, ThreadDebuggerCommand } from './DebugCommand';
 import { RunningDebugSessionState } from './DebugSessionState/RunningDebugSessionState';
 import { PausedDebugSessionState } from './DebugSessionState/PausedDebugSessionState';
 import { WebAssemblyFileRegistory } from "./WebAssembly/FileRegistory";
 import { CDPDebugger } from './CDP/CDPDebuggerApi';
+import { BreakPointsManager, ResolvedBreakPoint } from './BreakPoint/BreakPointsManager';
+
+interface BreakPointMapping {
+    id: number;
+    rawId?: string;
+    verified: boolean;
+}
+
+type MappedBreakPoint = BreakPointMapping & FileLocation;
 
 export class Thread implements ThreadDebuggerCommand {
-    private session: WebAssemblyFileRegistory;
-    
     private debugger?: ProtocolApi.DebuggerApi & CDPDebugger;
     private runtime?: ProtocolApi.RuntimeApi;
     private debugAdapter: DebugAdapter;
 
-    private breakPoints: RuntimeBreakPoint[] = [];
+    private fileRegistory: WebAssemblyFileRegistory;
+    private breakPointsManager: BreakPointsManager;
+
+    private breakPoints: MappedBreakPoint[] = [];
 
     private readonly threadID: number;
     private readonly sessionID: string;
@@ -28,24 +38,34 @@ export class Thread implements ThreadDebuggerCommand {
     private steppingOver = false;
     private steppingIn = false;
 
-    constructor(_debugAdapter: DebugAdapter, threadID: number, sessionId: string, fileRegistory: WebAssemblyFileRegistory) {
+    constructor(_debugAdapter: DebugAdapter, threadID: number, sessionId: string, fileRegistory: WebAssemblyFileRegistory, bpManager: BreakPointsManager) {
         this.debugAdapter = _debugAdapter;
       
         this.sessionState = new RunningDebugSessionState();
+        this.breakPointsManager = bpManager;
         this.threadID = threadID;
         this.sessionID = sessionId;
-        this.session = fileRegistory;
+        this.fileRegistory = fileRegistory;
     }
 
-    async setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
+    setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
         this.debugger = _debugger as ProtocolApi.DebuggerApi & CDPDebugger;
         this.runtime = _runtime;
 
         this.debugger.on('scriptParsed', (e, x?: string) => this.onScriptLoaded(e, x));
         this.debugger.on('paused', (e, x?: string) => void this.onPaused(e, x));
         this.debugger.on('resumed', (x?: string) => void this.onResumed(x));
+    }
 
-        await this.runtime.runIfWaitingForDebugger();
+    async activate() {
+        await this.debugger?.enable({});
+        await this.debugger?.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
+        await this.runtime?.runIfWaitingForDebugger();
+    }
+
+    async deactivate() {
+        await this.debugger?.disable();
+        await this.runtime?.disable();
     }
 
     async stepOver() {
@@ -90,39 +110,40 @@ export class Thread implements ThreadDebuggerCommand {
         return await this.sessionState.dumpVariable(expr);
     }
 
-    async setBreakPoint(location: FileLocation): Promise<IBreakPoint> {
-        const debugline = location.line;
-        const debugfilename = location.file;
-        const bpID =
-            this.breakPoints.length > 0
-            ? Math.max.apply(null, this.breakPoints.map(x => x.id!)) + 1
-            : 1;
-
-        const bpInfo = {
-            id: bpID,
-            file: debugfilename,
-            line: debugline,
-            verified: false
-        };
-
-        this.breakPoints.push(bpInfo);
-
-        await this.updateBreakPoint();
-
-        return bpInfo;
-    }
-
     async updateBreakPoint() {
-        const promises = this.breakPoints.filter(x => !x.verified).map(async bpInfo => {
-            if (!this.session) {
-                return bpInfo;
-            }
+        const currentBreakPoints = this.breakPointsManager.getBreakPoints();
 
-            const wasmLocation = this.session.findAddressFromFileLocation(bpInfo.file, bpInfo.line);
+        for (const [ id, bp ] of currentBreakPoints) {
+            if (this.breakPoints.filter(x => x.id === id).length === 0) {
+                this.breakPoints.push({ ...bp, verified: false });
+            }
+        }
+
+        const removedBps = this.breakPoints.filter(bp => {
+            for (const [ id, _ ] of currentBreakPoints) {
+                if (id === bp.id) return false;
+            }
+            return true;
+        });
+
+        const removePromises = removedBps.map(async bp => {
+            await this.debugger?.removeBreakpoint({ breakpointId: bp.rawId! });
+        });
+
+        await Promise.all(removePromises);
+
+        this.breakPoints = this.breakPoints.filter(bp => 
+            !removedBps.find(removed => 
+                removed.id === bp.id
+            )
+        );
+
+        const promises = this.breakPoints.filter(bp => !bp.verified).map(async bp => {
+            const wasmLocation = this.fileRegistory.findAddressFromFileLocation(bp.file, bp.line);
     
             if (!wasmLocation) {
                 console.error("cannot find address of specified file");
-                return bpInfo;
+                return bp;
             }
     
             const wasmDebuggerLocation = { 
@@ -132,62 +153,33 @@ export class Thread implements ThreadDebuggerCommand {
                 columnNumber: wasmLocation.column
             };
     
-            console.error(`update breakpoint ${bpInfo.file}:${bpInfo.line} -> ${wasmLocation.column}`);
+            console.error(`update breakpoint ${bp.file}:${bp.line} -> ${wasmLocation.column}`);
 
-            const bp = await this.debugger!.setBreakpointByUrl(wasmDebuggerLocation)
+            const rawBp = await this.debugger?.setBreakpointByUrl(wasmDebuggerLocation)
                 .catch(e => {
                     console.error(e);
                     return null;
                 });
 
-            if (bp) {
-                const correspondingLocation = this.session.findFileFromLocation(wasmDebuggerLocation)!;
+            if (rawBp) {
+                const correspondingLocation = this.fileRegistory.findFileFromLocation(wasmDebuggerLocation)!;
 
-                bpInfo.file = correspondingLocation.file();
-                bpInfo.line = correspondingLocation.line!;
-                bpInfo.rawId = bp.breakpointId;
-                bpInfo.verified = true;
+                bp.file = correspondingLocation.file();
+                bp.line = correspondingLocation.line || 0;
+                bp.rawId = rawBp.breakpointId;
+                bp.verified = true;
             }
 
-            return bpInfo;
+            return bp;
         });
 
         const bps = await Promise.all(promises);
-        bps.filter(x => x.verified).forEach(x => {
-            this.debugAdapter.sendEvent(new BreakpointEvent('changed', x));
+        bps.filter(bp => bp.rawId).forEach(bp => {
+            this.debugAdapter.sendEvent(new BreakpointEvent('changed', { ...bp }));
         });
     }
 
-    async removeBreakPoint(id: number) {
-
-        const promises = this.breakPoints
-            .filter(x => x.id == id)
-            .filter(x => !!x.rawId)
-            .map(async x => {
-                await this.debugger?.removeBreakpoint({
-                    breakpointId: x.rawId!
-                })
-            })
-
-        this.breakPoints = this.breakPoints.filter(x => x.id != id);   
-        await Promise.all(promises);
-    }
-
-    async removeAllBreakPoints(path: string) {
-        const promises = this.breakPoints
-            .filter(x => x.file == path)
-            .filter(x => !!x.rawId)
-            .map(async x => {
-                await this.debugger?.removeBreakpoint({
-                    breakpointId: x.rawId!
-                })
-            });
-
-        this.breakPoints = this.breakPoints.filter(x => x.file != path);  
-        await Promise.all(promises);
-    }
-
-    getBreakPointsList(location: string): Promise<IBreakPoint[]> {
+    getBreakPointsList(location: string): Promise<ResolvedBreakPoint[]> {
         const fileInfo = location.split(':');
         
         if (fileInfo.length < 2)
@@ -198,18 +190,13 @@ export class Thread implements ThreadDebuggerCommand {
         const debugfilename = fileInfo[0];
         const debugline = Number(fileInfo[1]);
 
-        return Promise.resolve(this.breakPoints.filter(x => {
-                return x.file == debugfilename && x.line == debugline;
-            }).map(x => {
-                return {
-                    ...x,
-                    verified: true
-                };
-            }));
+        return Promise.resolve(this.breakPoints.filter(bp => {
+            return bp.file == debugfilename && bp.line == debugline;
+        }));
     }
 
     private onScriptLoaded(e: Protocol.Debugger.ScriptParsedEvent, sessionId?: string) {
-        if (!!sessionId && sessionId != this.sessionID) {
+        if (sessionId && sessionId != this.sessionID) {
             return;
         }
 
@@ -217,14 +204,17 @@ export class Thread implements ThreadDebuggerCommand {
         if (e.scriptLanguage == "WebAssembly") {
             console.error(`Start Loading ${e.url}...`);
             
-            if (this.session.sources.has(e.scriptId)) {
-                this.scriptParsed = Promise.resolve();
+            if (this.fileRegistory.sources.has(e.scriptId)) {
+                (async () => {
+                    await this.scriptParsed;
+                    await this.updateBreakPoint();
+                })();
             } else {
                 this.scriptParsed = (async () => {
-                    const response = await this.debugger!.getScriptSource({ scriptId: e.scriptId });
+                    const response = await this.debugger?.getScriptSource({ scriptId: e.scriptId });
                     const buffer = Buffer.from(response?.bytecode || '', 'base64');
     
-                    this.session!.loadWebAssembly(e.url, e.scriptId, buffer);
+                    this.fileRegistory?.loadWebAssembly(e.url, e.scriptId, buffer);
     
                     console.error(`Finish Loading ${e.url}`);
     
@@ -237,7 +227,7 @@ export class Thread implements ThreadDebuggerCommand {
     private lastPausedLocation?: RuntimeStackFrame;
 
     private async onPaused(e: Protocol.Debugger.PausedEvent, sessionId?: string) {
-        if (!!sessionId && sessionId != this.sessionID) {
+        if (sessionId && sessionId != this.sessionID) {
             return;
         }
 
@@ -257,7 +247,7 @@ export class Thread implements ThreadDebuggerCommand {
         console.error("Hit BreakPoint");
 
         const stackFrames = e.callFrames.map((v, i) => {
-            const dwarfLocation = this.session!.findFileFromLocation(v.location);
+            const dwarfLocation = this.fileRegistory!.findFileFromLocation(v.location);
 
             return {
                 frame: v,
@@ -285,13 +275,13 @@ export class Thread implements ThreadDebuggerCommand {
             this.steppingIn = false;
             this.lastPausedLocation = stackFrames[0];
 
-            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.session!, stackFrames);
+            this.sessionState = new PausedDebugSessionState(this.debugger!, this.runtime!, this.fileRegistory!, stackFrames);
             this.debugAdapter.sendEvent(new StoppedEvent('BreakPointMapping', this.threadID));
         }
     }
 
     private onResumed(sessionId?: string) {
-        if (!!sessionId && sessionId != this.sessionID) {
+        if (sessionId && sessionId != this.sessionID) {
             return;
         }
 

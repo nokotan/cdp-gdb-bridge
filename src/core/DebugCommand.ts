@@ -1,5 +1,6 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import { WasmValueVector } from "../../crates/dwarf/pkg";
+import { ResolvedBreakPoint } from "./BreakPoint/BreakPointsManager";
 
 export interface Variable {
     name: string;
@@ -7,21 +8,6 @@ export interface Variable {
     type: string;
     childGroupId?: number;
 }
-
-export interface IBreakPoint {
-    id?: number;
-    line?: number;
-    column?: number;
-    verified: boolean;
-}
-
-export interface BreakPointMapping {
-    id?: number;
-    rawId?: string;
-    verified: boolean;
-}
-
-export type RuntimeBreakPoint = BreakPointMapping & FileLocation;
 
 export interface StackFrameFunction {
 	index: number;
@@ -67,10 +53,10 @@ export interface DebuggerWorkflowCommand {
 }
 
 export interface DebuggerBreakPointCommand {
-    setBreakPoint(location: FileLocation): Promise<IBreakPoint>;
+    setBreakPoint(location: FileLocation): Promise<ResolvedBreakPoint>;
     removeBreakPoint(id: number): Promise<void>;
     removeAllBreakPoints(path: string): Promise<void>;
-    getBreakPointsList(location: string): Promise<IBreakPoint[]>;
+    getBreakPointsList(location: string): Promise<ResolvedBreakPoint[]>;
 }
 
 export interface DebuggerOtherCommand {
@@ -79,5 +65,5 @@ export interface DebuggerOtherCommand {
 
 
 
-export type ThreadDebuggerCommand = DebuggerWorkflowCommand & DebuggerDumpCommand & DebuggerBreakPointCommand;
+export type ThreadDebuggerCommand = DebuggerWorkflowCommand & DebuggerDumpCommand;
 export type DebuggerCommand = ThreadDebuggerCommand & DebuggerOtherCommand;

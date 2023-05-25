@@ -1,11 +1,12 @@
 import type Protocol from 'devtools-protocol/types/protocol';
 import type ProtocolApi from 'devtools-protocol/types/protocol-proxy-api';
 import { DebugAdapter } from './DebugAdapterInterface';
-import { IBreakPoint, FileLocation } from './DebugCommand';
+import { FileLocation } from './DebugCommand';
 import { WebAssemblyFileRegistory } from "./WebAssembly/FileRegistory";
 import { Thread } from './DebugThread';
 import { createDebuggerProxy, createRuntimeProxy } from './CDP/CDPProxy';
 import { ThreadEvent } from '@vscode/debugadapter';
+import { BreakPointsManager, ResolvedBreakPoint } from './BreakPoint/BreakPointsManager';
 
 export interface ThreadInfo {
     threadID: number;
@@ -16,6 +17,7 @@ export class DebugSession {
     private fileRegistory: WebAssemblyFileRegistory;
     private threads: Map<number, Thread>;
     private sessionToThreadInfo: Map<string, ThreadInfo>;
+    private breakpoints: BreakPointsManager;
 
     private debugger?: ProtocolApi.DebuggerApi;
     private page?: ProtocolApi.PageApi;
@@ -28,14 +30,12 @@ export class DebugSession {
     private lastThreadId: number = 1;
     private focusedThreadId: number = 0;
 
-    private requestedBpLists: Map<string, FileLocation[]>;
-
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
         this.fileRegistory = new WebAssemblyFileRegistory();
         this.threads = new Map();
         this.sessionToThreadInfo = new Map();
-        this.requestedBpLists = new Map();
+        this.breakpoints = new BreakPointsManager();
     }
 
     setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi, _target?: ProtocolApi.TargetApi) {
@@ -51,16 +51,13 @@ export class DebugSession {
         this.target?.setDiscoverTargets({ discover: true });
         this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
-        this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory);
+        this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory, this.breakpoints);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
-
-        this.reset();
     }
 
     private reset() {
         this.threads.clear();
         this.sessionToThreadInfo.clear();
-        this.requestedBpLists.clear();
         this.lastThreadId = 1;
 
         this.threads.set(0, this.defaultThread!);
@@ -121,39 +118,34 @@ export class DebugSession {
         return await thread?.dumpVariable(expr);
     }
 
-    async setBreakPoint(location: FileLocation): Promise<IBreakPoint> {
-        const breakPoints = [];
-
-        if (!this.requestedBpLists.has(location.file)) {
-            this.requestedBpLists.set(location.file, [ location ]);
-        } else {
-            this.requestedBpLists.get(location.file)?.push(location);
-        }
+    async setBreakPoint(location: FileLocation): Promise<ResolvedBreakPoint> {
+        const id = this.breakpoints.setBreakPoint(location);
 
         for (const thread of this.threads.values()) {
-            const breakPoint = await thread.setBreakPoint(location);
-            breakPoints.push(breakPoint);
+            await thread.updateBreakPoint();
         }
-
-        return breakPoints[0];
+       
+        return { id, verified: false };
     }
 
     async removeBreakPoint(id: number) {
+        this.breakpoints.removeBreakPoint(id);
+
         for (const thread of this.threads.values()) {
-            await thread.removeBreakPoint(id);
+            await thread.updateBreakPoint();
         }
     }
 
     async removeAllBreakPoints(path: string) {
-        this.requestedBpLists.get(path)?.splice(0);
+        this.breakpoints.removeAllBreakPoint(path);
 
         for (const thread of this.threads.values()) {
-            await thread.removeAllBreakPoints(path);
+            await thread.updateBreakPoint();
         }
     }
 
-    async getBreakPointsList(location: string): Promise<IBreakPoint[]> {
-        const breakPoints: IBreakPoint[] = [];
+    async getBreakPointsList(location: string): Promise<ResolvedBreakPoint[]> {
+        const breakPoints: ResolvedBreakPoint[] = [];
 
         for (const thread of this.threads.values()) {
             const breakPoint = await thread.getBreakPointsList(location);
@@ -179,19 +171,14 @@ export class DebugSession {
         const threadID = this.lastThreadId;
         this.lastThreadId++;
         
-        const newThread = new Thread(this.debugAdapter, threadID, e.sessionId, this.fileRegistory);
+        const newThread = new Thread(this.debugAdapter, threadID, e.sessionId, this.fileRegistory, this.breakpoints);
 
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);
 
-        await _debugger.enable({});
         await newThread.setChromeDebuggerApi(_debugger, runtime);
-
-        for (const bpList of this.requestedBpLists.values()) {
-            for (const bp of bpList) {
-                await newThread.setBreakPoint(bp);
-            }
-        }
+        await newThread.activate();
+        await newThread.updateBreakPoint();
 
         this.threads.set(threadID, newThread);
         this.sessionToThreadInfo.set(e.sessionId, { threadID, threadName: e.targetInfo.url });

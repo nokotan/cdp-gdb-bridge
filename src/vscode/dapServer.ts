@@ -293,8 +293,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				file: path,
 				line: l
 			};
-			const bp = await this.session.setBreakPoint(fileSpec) || { verified: false };
-			return bp as DebugProtocol.Breakpoint;
+			return await this.session.setBreakPoint(fileSpec);
 		});
 		const actualBreakpoints = await Promise.all<DebugProtocol.Breakpoint>(actualBreakpoints0);
 		console.error(actualBreakpoints);

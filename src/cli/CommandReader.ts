@@ -1,11 +1,11 @@
-import { DebuggerCommand } from '../core/DebugCommand';
+import { DebuggerCommand, DebuggerBreakPointCommand } from '../core/DebugCommand';
 import { createInterface } from 'readline';
 
 export class CommandReader {
-    private session: DebuggerCommand;
+    private session: DebuggerCommand & DebuggerBreakPointCommand;
     private commandList: Map<string, (args?: string | number) => void>;
 
-    constructor(_session: DebuggerCommand) {
+    constructor(_session: DebuggerCommand & DebuggerBreakPointCommand) {
         this.session = _session;
 
         this.commandList = new Map<string, (args?:any) => void>([
