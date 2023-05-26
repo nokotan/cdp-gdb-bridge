@@ -1,37 +1,27 @@
 import { DebugClient } from "@vscode/debugadapter-testsupport";
-import { Server } from "http";
-import { createServer } from "http-server";
 
 let dc: DebugClient;
-let server: Server;
 
 beforeAll(() => {
-    dc = new DebugClient('node', 'dist/vscode/dapServerLauncher.js', 'wasm-chrome', undefined, true);
-    server = createServer({ 
-        root: "tests/emscripten-simple-app"
-    });
-    server.listen(8080);
+    dc = new DebugClient('node', 'dist/vscode/dapServerLauncher.js', 'wasm-node', undefined, true);
     return dc.start();
 });
 
 afterAll(() => {
     void dc.stop();
-    server.close();
 })
 
-test('should run program on chrome to the end', async () => {
-    await dc.launch({ url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19101, flags: [ "--headless", "--disable-gpu", "--no-sandbox" ] });
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await Promise.all([           
+test('should run program to the end', () => {
+    return Promise.all([
         dc.waitForEvent("terminated"),
-        dc.terminateRequest({})
+        dc.launch({ program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19201 })
     ]);
 }, 20000);
 
-test('should hit breakpoint on chrome', async () => {
+test('should hit breakpoint', async () => {
     const breakPoint = {
         path: "c:/emscripten-simple-app/Main.cpp",
-        line: 3
+        line: 4
     };
     await Promise.all([
         dc.waitForEvent("initialized"),
@@ -44,7 +34,7 @@ test('should hit breakpoint on chrome', async () => {
     });
     await Promise.all([
         dc.assertStoppedLocation("BreakPointMapping", breakPoint),
-        dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19102, flags: [ "--headless", "--disable-gpu", "--no-sandbox" ] })
+        dc.send("launch", { program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19202 })
     ]);
     await Promise.all([           
         dc.waitForEvent("terminated"),
@@ -52,10 +42,10 @@ test('should hit breakpoint on chrome', async () => {
     ]);
 }, 20000);
 
-test('should step line by line on chrome', async () => {
+test('should step line by line', async () => {
     const breakPoint = {
         path: "c:/emscripten-simple-app/Main.cpp",
-        line: 3
+        line: 4
     };
   
     await Promise.all([
@@ -69,7 +59,7 @@ test('should step line by line on chrome', async () => {
     });
     await Promise.all([
         dc.waitForEvent("stopped"),
-        dc.send("launch", { url: "http://localhost:8080/Main.html", type: "wasm-chrome", port: 19103, flags: [ "--headless", "--disable-gpu", "--no-sandbox" ] })
+        dc.send("launch", { program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19203 })
     ]);
     await Promise.all([           
         dc.assertStoppedLocation("BreakPointMapping", {
