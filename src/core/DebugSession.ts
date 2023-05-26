@@ -14,7 +14,6 @@ export interface ThreadInfo {
 }
 
 export class DebugSession {
-    private fileRegistory: WebAssemblyFileRegistory;
     private threads: Map<number, Thread>;
     private sessionToThreadInfo: Map<string, ThreadInfo>;
     private breakpoints: BreakPointsManager;
@@ -32,7 +31,6 @@ export class DebugSession {
 
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
-        this.fileRegistory = new WebAssemblyFileRegistory();
         this.threads = new Map();
         this.sessionToThreadInfo = new Map();
         this.breakpoints = new BreakPointsManager();
@@ -51,7 +49,7 @@ export class DebugSession {
         void this.target?.setDiscoverTargets({ discover: true });
         void this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
-        this.defaultThread = new Thread(this.debugAdapter, 0, "", this.fileRegistory, this.breakpoints);
+        this.defaultThread = new Thread(this.debugAdapter, 0, "", this.breakpoints);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
 
         this.threads.set(0, this.defaultThread);
@@ -173,7 +171,7 @@ export class DebugSession {
         const threadID = this.lastThreadId;
         this.lastThreadId++;
         
-        const newThread = new Thread(this.debugAdapter, threadID, e.sessionId, this.fileRegistory, this.breakpoints);
+        const newThread = new Thread(this.debugAdapter, threadID, e.sessionId, this.breakpoints);
 
         const _debugger = createDebuggerProxy(this.debugger!, e.sessionId);
         const runtime = createRuntimeProxy(this.runtime!, e.sessionId);

@@ -38,14 +38,14 @@ export class Thread implements ThreadDebuggerCommand {
     private steppingOver = false;
     private steppingIn = false;
 
-    constructor(_debugAdapter: DebugAdapter, threadID: number, sessionId: string, fileRegistory: WebAssemblyFileRegistory, bpManager: BreakPointsManager) {
+    constructor(_debugAdapter: DebugAdapter, threadID: number, sessionId: string, bpManager: BreakPointsManager) {
         this.debugAdapter = _debugAdapter;
       
         this.sessionState = new RunningDebugSessionState();
         this.breakPointsManager = bpManager;
         this.threadID = threadID;
         this.sessionID = sessionId;
-        this.fileRegistory = fileRegistory;
+        this.fileRegistory = new WebAssemblyFileRegistory();
     }
 
     setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _runtime: ProtocolApi.RuntimeApi) {
@@ -153,7 +153,7 @@ export class Thread implements ThreadDebuggerCommand {
                 columnNumber: wasmLocation.column
             };
     
-            console.error(`update breakpoint ${bp.file}:${bp.line} -> ${wasmLocation.column}`);
+            console.error(`update breakpoint ${bp.file}:${bp.line} -> ${wasmLocation.scriptId}:0:${wasmLocation.column}`);
 
             const rawBp = await this.debugger?.setBreakpoint({ location: wasmDebuggerLocation })
                 .catch(e => {
@@ -204,8 +204,7 @@ export class Thread implements ThreadDebuggerCommand {
             console.error(`Start Loading ${e.url}...`);
             
             if (this.fileRegistory.sources.has(e.scriptId)) {
-                void (async () => {
-                    await this.scriptParsed;
+                this.scriptParsed = (async () => {
                     await this.updateBreakPoint();
                 })();
             } else {
