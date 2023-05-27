@@ -60,6 +60,7 @@ export class Thread implements ThreadDebuggerCommand {
     async activate() {
         await this.debugger?.enable({});
         await this.debugger?.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
+        await this.runtime?.enable();
         await this.runtime?.runIfWaitingForDebugger();
     }
 
@@ -162,6 +163,8 @@ export class Thread implements ThreadDebuggerCommand {
                 });
 
             if (rawBp) {
+                console.error(`breakpoint mapped ${wasmLocation.scriptId}:0:${wasmLocation.column} -> ${rawBp.actualLocation.scriptId}:${rawBp.actualLocation.lineNumber}:${rawBp.actualLocation.columnNumber} (${rawBp.breakpointId})`);
+
                 const correspondingLocation = this.fileRegistory.findFileFromLocation(wasmDebuggerLocation)!;
 
                 bp.file = correspondingLocation.file();
@@ -201,7 +204,7 @@ export class Thread implements ThreadDebuggerCommand {
         }
 
         if (e.scriptLanguage == "WebAssembly") {
-            console.error(`Start Loading ${e.url}...`);
+            console.error(`Thread ${this.threadID}: Start Loading ${e.url}...`);
             
             if (this.fileRegistory.sources.has(e.scriptId)) {
                 this.scriptParsed = (async () => {
@@ -233,16 +236,16 @@ export class Thread implements ThreadDebuggerCommand {
             await this.debugger?.resume({});
             return;
         } else if (e.reason == "instrumentation") {
-            console.error("Instrumentation BreakPoint");
+            console.error(`Thread ${this.threadID}: Instrumentation BreakPoint`);
             if (this.scriptParsed) {
-                console.error("awaiting scriptParsed...");
+                console.error(`Thread ${this.threadID}: awaiting scriptParsed...`);
                 await this.scriptParsed;
             }
             await this.debugger?.resume({});
             return;
         }
 
-        console.error("Hit BreakPoint");
+        console.error(`Thread ${this.threadID}: Hit BreakPoint`);
 
         const stackFrames = e.callFrames.map((v, i) => {
             const dwarfLocation = this.fileRegistory.findFileFromLocation(v.location);

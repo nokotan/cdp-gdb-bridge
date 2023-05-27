@@ -42,17 +42,28 @@ export class DebugSession {
         this.runtime = _runtime;
         this.target = _target;
 
+        if (!this.target) {
+            console.error("target api disabled");
+        }
+
         this.page?.on("loadEventFired", (e) => void this.onLoad(e));
         this.target?.on("attachedToTarget", (e) => void this.onThreadCreated(e));
         this.target?.on("detachedFromTarget", (e) => void this.onThreadDestroyed(e));
-        
-        void this.target?.setDiscoverTargets({ discover: true });
-        void this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
 
         this.defaultThread = new Thread(this.debugAdapter, 0, "", this.breakpoints);
         this.defaultThread.setChromeDebuggerApi(this.debugger, this.runtime);
 
         this.threads.set(0, this.defaultThread);
+    }
+
+    async activate() {
+        await this.target?.setDiscoverTargets({ discover: true });
+        await this.target?.setAutoAttach({ autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+        await this.defaultThread?.activate();
+    }
+
+    async deactivate() {
+        await this.defaultThread?.deactivate();
     }
 
     private reset() {

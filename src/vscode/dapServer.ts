@@ -130,11 +130,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			}
 		});
 
-        await Debugger.enable({});
-		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
-
-        await Runtime.enable();
-		await Runtime.runIfWaitingForDebugger();
+		await this.session.activate();
 
 		// nodejs don't have Page interface.
         if (Page) await Page.enable();		
@@ -266,11 +262,7 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 			}
 		});
 
-        await Debugger.enable({});
-		await Debugger.setInstrumentationBreakpoint({ instrumentation: "beforeScriptExecution" });
-
-        await Runtime.enable();
-		await Runtime.runIfWaitingForDebugger();
+		await this.session.activate();
 		
 		// nodejs don't have Page interface.
         if (Page && args.type == "wasm-chrome") {
