@@ -28,6 +28,15 @@ test('should run program on chrome to the end', async () => {
     ]);
 }, 20000);
 
+test('should capture log on chrome', async () => {
+    await dc.launch({ url: "http://localhost:8081/Main.html", type: "wasm-chrome", port: 19301, flags: [ "--headless", "--disable-gpu", "--no-sandbox" ] });
+    await dc.assertOutput("stdout", "Hei\n");
+    await Promise.all([           
+        dc.waitForEvent("terminated"),
+        dc.terminateRequest({})
+    ]);
+}, 20000);
+
 test('should hit breakpoint on chrome', async () => {
     const breakPoint = {
         path: "c:/emscripten-simple-app/Main.cpp",

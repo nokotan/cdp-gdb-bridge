@@ -23,6 +23,16 @@ test('should run program to the end', () => {
 //
 // nodejs worker debugging is disabled for lacking cdp target api.
 //
+
+// test('should capture log', async () => {
+//     await dc.launch({ program: "tests/emscripten-pthread-app/Main.js", type: "wasm-node", port: 19401 });
+//     await dc.assertOutput("stdout", "Hei\n");
+//     await Promise.all([           
+//         dc.waitForEvent("terminated"),
+//         dc.terminateRequest({})
+//     ]);
+// }, 20000);
+
 // test('should hit breakpoint', async () => {
 //     const breakPoint = {
 //         path: "c:/emscripten-simple-app/Main.cpp",

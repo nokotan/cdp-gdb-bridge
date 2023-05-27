@@ -18,6 +18,15 @@ test('should run program to the end', () => {
     ]);
 }, 20000);
 
+test('should capture log', async () => {
+    await dc.launch({ program: "tests/emscripten-simple-app/Main.js", type: "wasm-node", port: 19201 });
+    await dc.assertOutput("stdout", "Hei\n");
+    await Promise.all([           
+        dc.waitForEvent("terminated"),
+        dc.terminateRequest({})
+    ]);
+}, 20000);
+
 test('should hit breakpoint', async () => {
     const breakPoint = {
         path: "c:/emscripten-simple-app/Main.cpp",
