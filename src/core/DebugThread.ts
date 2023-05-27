@@ -163,7 +163,7 @@ export class Thread implements ThreadDebuggerCommand {
                 });
 
             if (rawBp) {
-                console.error(`breakpoint mapped ${wasmLocation.scriptId}:0:${wasmLocation.column} -> ${rawBp.actualLocation.scriptId}:${rawBp.actualLocation.lineNumber}:${rawBp.actualLocation.columnNumber} (${rawBp.breakpointId})`);
+                console.error(`breakpoint mapped ${wasmLocation.scriptId}:0:${wasmLocation.column} -> ${rawBp.actualLocation.scriptId}:${rawBp.actualLocation.lineNumber}:${rawBp.actualLocation.columnNumber || 0} (${rawBp.breakpointId})`);
 
                 const correspondingLocation = this.fileRegistory.findFileFromLocation(wasmDebuggerLocation)!;
 
