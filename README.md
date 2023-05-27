@@ -52,7 +52,7 @@ Start Loading http://localhost:8080/index.wasm...
 
 | | Windows | macOS | Linux | Support Version |
 | :--: | :--: | :--: | :--: | :--: |
-| node.js | ✅ | ✅ | ✅ | v16.0+ |
+| node.js | ✅ | ✅ | ✅ | v16.0+, no workers debugging support |
 | Chrome | ✅ | ✅ | ✅ | v64+ |
 | FireFox | ❌ | ❌ | ❌ | |
 | Safari | - | ❌ | - | |
