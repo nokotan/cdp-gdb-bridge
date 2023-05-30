@@ -14,7 +14,6 @@ import { basename } from 'path'
 import { ChildProcess, spawn } from 'child_process';
 import { createConnection } from 'net';
 import fetch from 'node-fetch-commonjs';
-import { Uri } from 'vscode';
 
 /**
  * This interface describes the wasm specific launch attributes
@@ -210,8 +209,8 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				this.session.webRoot = args.webRoot || "";
 
 				if (args.url) {
-					const url = Uri.parse(args.url);
-					this.session.serverRoot = `${url.scheme}://${url.authority}`
+					const url = new URL(args.url);
+					this.session.serverRoot = `${url.protocol}//${url.host}`
 				}
 
 				break;
