@@ -222,6 +222,8 @@ export class Thread implements ThreadDebuggerCommand {
                     await this.updateBreakPoint();
                 })();
             }
+        } else if (e.scriptLanguage === "JavaScript") {
+            this.fileRegistory.loadJavaScript(e.url, e.scriptId);
         }
     }
 

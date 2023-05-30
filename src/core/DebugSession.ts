@@ -14,9 +14,9 @@ export interface ThreadInfo {
 }
 
 export class DebugSession {
-    private threads: Map<number, Thread>;
-    private sessionToThreadInfo: Map<string, ThreadInfo>;
-    private breakpoints: BreakPointsManager;
+    private threads: Map<number, Thread> = new Map();
+    private sessionToThreadInfo: Map<string, ThreadInfo> = new Map();
+    private breakpoints: BreakPointsManager = new BreakPointsManager();
 
     private debugger?: ProtocolApi.DebuggerApi;
     private page?: ProtocolApi.PageApi;
@@ -29,11 +29,11 @@ export class DebugSession {
     private lastThreadId = 1;
     private focusedThreadId = 0;
 
+    serverRoot = "";
+    webRoot = "";
+
     constructor(_debugAdapter: DebugAdapter) {
         this.debugAdapter = _debugAdapter;
-        this.threads = new Map();
-        this.sessionToThreadInfo = new Map();
-        this.breakpoints = new BreakPointsManager();
     }
 
     setChromeDebuggerApi(_debugger: ProtocolApi.DebuggerApi, _page: ProtocolApi.PageApi, _runtime: ProtocolApi.RuntimeApi, _target?: ProtocolApi.TargetApi) {
@@ -97,7 +97,17 @@ export class DebugSession {
 
     async getStackFrames(threadId?: number) {
         const thread = this.threads.get(threadId || this.focusedThreadId);
-        return (await thread?.getStackFrames()) || [];
+        const frames = await thread?.getStackFrames() || [];
+
+        if (this.serverRoot) {
+            for (const frame of frames) {
+                if (frame.file.startsWith(this.serverRoot)) {
+                    frame.file = frame.file.replace(this.serverRoot, this.webRoot);
+                }
+            }
+        }
+        
+        return frames;
     }
 
     setFocusedThread(threadId: number) {

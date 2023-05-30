@@ -14,6 +14,7 @@ import { basename } from 'path'
 import { ChildProcess, spawn } from 'child_process';
 import { createConnection } from 'net';
 import fetch from 'node-fetch-commonjs';
+import { Uri } from 'vscode';
 
 /**
  * This interface describes the wasm specific launch attributes
@@ -30,6 +31,8 @@ interface IChromeLaunchRequestArguments {
 	port?: number;
 
 	flags?: string[];
+
+	webRoot?: string;
 }
 
 interface INodeLaunchRequestArguments {
@@ -204,6 +207,13 @@ export class VSCodeDebugSession extends LoggingDebugSession implements DebugAdap
 				});
 
 				this.launchedProcess = launchedProcess.process;
+				this.session.webRoot = args.webRoot || "";
+
+				if (args.url) {
+					const url = Uri.parse(args.url);
+					this.session.serverRoot = `${url.scheme}://${url.authority}`
+				}
+
 				break;
 			}	
 			case 'wasm-node': {

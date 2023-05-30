@@ -5,11 +5,8 @@ import { DwarfDebugSymbolContainer } from '../../../crates/dwarf/pkg';
 
 export class WebAssemblyFileRegistory {
 
-    sources: Map<string, WebAssemblyFile>;
-
-    constructor() {
-        this.sources = new Map();
-    }
+    sources: Map<string, WebAssemblyFile> = new Map();
+    jsFiles: Map<string, string> = new Map();
 
     reset() {
         for (const [_, item] of this.sources) {
@@ -17,6 +14,7 @@ export class WebAssemblyFileRegistory {
         }
 
         this.sources.clear();
+        this.jsFiles.clear();
     }
 
     loadWebAssembly(url: string, scriptID: string, buffer: Buffer) {
@@ -28,10 +26,21 @@ export class WebAssemblyFileRegistory {
         this.sources.set(scriptID, new WebAssemblyFile(scriptID, url, container));
     }
 
+    loadJavaScript(url: string, scriptID: string) {
+        this.jsFiles.set(scriptID, url);
+    }
+
     findFileFromLocation(loc: Protocol.Debugger.Location) {
-        return Array.from(this.sources.values()).filter(
+        const wasmLocation = Array.from(this.sources.values()).filter(
                     x => x.scriptID == loc.scriptId
                 )[0]?.findFileFromLocation(loc);
+        const jsUrl = this.jsFiles.get(loc.scriptId) || "";
+        return wasmLocation || {
+            line: loc.lineNumber + 1,
+            file() {
+                return jsUrl;
+            }
+        };
     }
 
     findAddressFromFileLocation(file: string, line: number) {
