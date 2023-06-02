@@ -28,14 +28,26 @@ impl DwarfDebugSymbolContainer {
         }
     }
 
-    pub fn find_file_info_from_address(&self, instruction_offset: usize) -> Option<WasmLineInfo> {
+    pub fn find_file_info_from_address(&mut self, instruction_offset: usize) -> Option<WasmLineInfo> {
+        let subroutine = match self
+            .debug_info
+            .subroutine
+            .find_subroutine(instruction_offset - self.code_base)
+        {
+            Ok(x) => x,
+            Err(e) => {
+                console_log!("{}", e);
+                return None;
+            }
+        };
+
         self.debug_info
             .sourcemap
-            .find_line_info(instruction_offset - self.code_base)
+            .find_line_info(&subroutine.unit_offset, instruction_offset - self.code_base)
             .map(|x| WasmLineInfo::from_line_info(&x))
     }
 
-    pub fn find_address_from_file_info(&self, info: &WasmLineInfo) -> Option<usize> {
+    pub fn find_address_from_file_info(&mut self, info: &WasmLineInfo) -> Option<usize> {
         let file_info = WasmLineInfo::into_line_info(info);
         self.debug_info
             .sourcemap

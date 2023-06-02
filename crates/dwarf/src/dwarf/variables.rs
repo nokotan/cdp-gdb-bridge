@@ -614,7 +614,7 @@ impl DwarfGlobalVariables {
             }
         };
         let variables = variables_in_unit_entry(&dwarf, &unit, None, 0, 0)?;
-
+        
         evaluate_variable_from_string(name, &variables, &dwarf, &unit, frame_base)
     }
 

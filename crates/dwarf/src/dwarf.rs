@@ -109,9 +109,7 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
         entry_num += 1;
         sourcemaps.push(transform_debug_line(
             &unit,
-            root,
             &dwarf,
-            &dwarf.debug_line,
         )?);
         subroutines.append(&mut transform_subprogram(&dwarf, &unit, header_offset)?);
     }
@@ -128,7 +126,7 @@ pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
     })
 }
 
-fn header_from_offset<R: gimli::Reader>(
+pub fn header_from_offset<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     offset: UnitSectionOffset<R::Offset>,
 ) -> Result<Option<UnitHeader<R>>> {

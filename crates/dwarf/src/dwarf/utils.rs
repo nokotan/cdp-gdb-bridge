@@ -30,7 +30,7 @@ pub(crate) fn clone_string_attribute<R: gimli::Reader>(
         .to_string())
 }
 
-pub(crate) fn convert_from_windows_stype_path(path: &String) -> String {
+pub(crate) fn convert_from_windows_style_path(path: &String) -> String {
     let backslash_escaped = path.replace('\\', "/");
     let regex = Regex::new("^([A-Za-z]):/");
     regex

@@ -61,28 +61,28 @@ impl WasmValueVector {
 
 #[wasm_bindgen]
 pub struct WasmLineInfo {
-    pub(crate) filepath: String,
+    pub(crate) file_path: String,
     pub line: Option<usize>,
     pub column: Option<usize>,
 }
 
 #[wasm_bindgen]
 impl WasmLineInfo {
-    pub fn new(filepath: String, line: Option<usize>, column: Option<usize>) -> Self {
+    pub fn new(file_path: String, line: Option<usize>, column: Option<usize>) -> Self {
         Self {
-            filepath,
+            file_path,
             line,
             column,
         }
     }
 
     pub fn file(&self) -> String {
-        self.filepath.clone()
+        self.file_path.clone()
     }
 
     pub(crate) fn from_line_info(info: &LineInfo) -> Self {
         Self {
-            filepath: info.filepath.clone(),
+            file_path: info.file_path.clone(),
             line: info.line.map(|x| x as usize),
             column: match info.column {
                 ColumnType::Column(x) => Some(x as usize),
@@ -93,7 +93,7 @@ impl WasmLineInfo {
 
     pub(crate) fn into_line_info(info: &WasmLineInfo) -> LineInfo {
         LineInfo {
-            filepath: info.filepath.clone(),
+            file_path: info.file_path.clone(),
             line: info.line.map(|x| x as u64),
             column: match info.column {
                 Some(x) => ColumnType::Column(x as u64),
